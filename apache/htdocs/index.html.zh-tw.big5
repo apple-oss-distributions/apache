@@ -2,6 +2,7 @@
 <html>
  <head>
   <title>安裝 Apache 的測試網頁</title>
+  <meta http-equiv="content-type" content="text/html;charset=big5">
  </head>
  <!-- Background white, links blue (unvisited), navy (visited), red (active)-->
  <body
