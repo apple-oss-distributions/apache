@@ -71,9 +71,11 @@
     available in Apache 1.1 and later</p>
 
     <p>This directive adds an action, which will activate
-    <em>cgi-script</em> when <em>action-type</em> is triggered by
-    the request. The <em>action-type</em> can be either a <a
-    href="../handler.html">handler</a> or a MIME content type. It
+    <em>cgi-script</em> when <em>action-type</em> is triggered by the
+    request.  The <i>cgi-script</i> is the URL-path to a resource that
+    has been configured as a CGI script using <code>ScriptAlias</code>
+    or <code>AddHandler</code>. The <em>action-type</em> can be either
+    a <a href="../handler.html">handler</a> or a MIME content type. It
     sends the URL and file path of the requested document using the
     standard CGI PATH_INFO and PATH_TRANSLATED environment
     variables.</p>
@@ -120,9 +122,11 @@
 
     <p>This directive adds an action, which will activate
     <i>cgi-script</i> when a file is requested using the method of
-    <i>method</i>. It sends the URL and file path of the requested
-    document using the standard CGI PATH_INFO and PATH_TRANSLATED
-    environment variables.</p>
+    <i>method</i>. The <i>cgi-script</i> is the URL-path to a resource
+    that has been configured as a CGI script using
+    <code>ScriptAlias</code> or <code>AddHandler</code>.  The URL and
+    file path of the requested document is sent using the standard CGI
+    PATH_INFO and PATH_TRANSLATED environment variables.</p>
 
     <blockquote>
       Prior to Apache 1.3.10, <i>method</i> can only be one of

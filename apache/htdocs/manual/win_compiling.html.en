@@ -34,7 +34,10 @@
     Platform SDK, may be required to prepare the command-line tools
     for command-line builds (e.g. using nmake). To install apache
     with the Makefile.win or the InstallBin project in the Visual
-    Studio IDE, the awk utility is also required.</p>
+    Studio IDE, the awk utility is also required.  If you use Visual
+    Studio 7.0 (.net), loading Apache.dsw converts it to .msproj
+    format.  When changes are made to the project (.dsp) files, you 
+    must reconvert Apache.dsw all over again.</p>
 
     <p>First, you should install awk.exe where it can be found in
     the path and the DevStudio environment, if you plan to use the
@@ -46,10 +49,11 @@
     from this site, you must save it with the name awk.exe rather
     than awk95.exe.</p>
 
-    <p>Note that DevStudio will only find awk.exe if its location
-    is listed under the <u>T</u>ools menu <u>O</u>ptions...
-    Directories settings for the Executable files. Add the path where
-    awk.exe resides to this list, as needed.</p>
+    <p>Note that Developer Studio IDE will only find awk.exe from
+    the <u>T</u>ools menu <u>O</u>ptions... Directories tab 
+    (the Projects - VC++ Directories pane in Developer Studio 7.0)
+    listing Executable file paths.  Add the path for awk.exe to this 
+    list, and your system PATH environment variable, as needed.</p>
 
     <p>Then unpack the Apache distribution into an appropriate
     directory. Open a command-line prompt, and change to the
@@ -189,7 +193,7 @@
     <code>\Apache</code> directory, on the current hard drive.</p>
 
     <p>To install the files into the <code>c:\ServerRoot</code>
-    directory automatically, use one the following nmake commands
+    directory automatically, use one of the following nmake commands
     (see above):</p>
 
     <ul>

@@ -314,7 +314,7 @@
     than page after page of configuration dialog boxes.</p>
 
     <p>After starting Apache running (either in a console window or
-    as a service) if will be listening to port 80 (unless you
+    as a service) it will be listening to port 80 (unless you
     changed the <samp>Port</samp>, <samp>Listen</samp> or
     <samp>BindAddress</samp> directives in the configuration
     files). To connect to the server and access the default page,
