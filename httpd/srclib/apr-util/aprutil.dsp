@@ -43,7 +43,7 @@ RSC=rc.exe
 # PROP Intermediate_Dir "LibR"
 # PROP Target_Dir ""
 # ADD BASE CPP /nologo /MD /W3 /O2 /D "WIN32" /D "NDEBUG" /D "_WINDOWS" /FD /c
-# ADD CPP /nologo /MD /W3 /O2 /Oy- /Zi /I "./include" /I "../apr/include" /I "./include/private" /I "../apr-iconv/include" /I "./dbm/sdbm" /I "./xml/expat/lib" /D "NDEBUG" /D "APR_DECLARE_STATIC" /D "APU_DECLARE_STATIC" /D "API_DECLARE_STATIC" /D "APU_USE_SDBM" /D "XML_STATIC" /D "WIN32" /D "_WINDOWS" /Fo"$(INTDIR)\" /Fd"$(OUTDIR)\aprutil-1" /FD /c
+# ADD CPP /nologo /MD /W3 /O2 /Oy- /Zi /I "./include" /I "../apr/include" /I "./include/private" /I "../apr-iconv/include" /I "./dbm/sdbm" /I "./xml/expat/lib" /D "NDEBUG" /D "APR_DECLARE_STATIC" /D "APU_DECLARE_STATIC" /D "API_DECLARE_STATIC" /D "APU_USE_SDBM" /D "HAVE_SQL_H" /D "XML_STATIC" /D "WIN32" /D "_WINDOWS" /Fo"$(INTDIR)\" /Fd"$(OUTDIR)\aprutil-1" /FD /c
 # ADD BASE RSC /l 0x409 /d "NDEBUG"
 # ADD RSC /l 0x409 /d "NDEBUG"
 BSC32=bscmake.exe
@@ -67,7 +67,7 @@ LIB32=link.exe -lib
 # PROP Ignore_Export_Lib 0
 # PROP Target_Dir ""
 # ADD BASE CPP /nologo /MDd /W3 /EHsc /Zi /Od /D "WIN32" /D "_DEBUG" /D "_WINDOWS" /FD /c
-# ADD CPP /nologo /MDd /W3 /EHsc /Zi /Od /I "./include" /I "../apr/include" /I "./include/private" /I "../apr-iconv/include" /I "./dbm/sdbm" /I "./xml/expat/lib" /D "_DEBUG" /D "APR_DECLARE_STATIC" /D "APU_DECLARE_STATIC" /D "API_DECLARE_STATIC" /D "APU_USE_SDBM" /D "XML_STATIC" /D "WIN32" /D "_WINDOWS" /Fo"$(INTDIR)\" /Fd"$(OUTDIR)\aprutil-1" /FD /c
+# ADD CPP /nologo /MDd /W3 /EHsc /Zi /Od /I "./include" /I "../apr/include" /I "./include/private" /I "../apr-iconv/include" /I "./dbm/sdbm" /I "./xml/expat/lib" /D "_DEBUG" /D "APR_DECLARE_STATIC" /D "APU_DECLARE_STATIC" /D "API_DECLARE_STATIC" /D "APU_USE_SDBM" /D "HAVE_SQL_H" /D "XML_STATIC" /D "WIN32" /D "_WINDOWS" /Fo"$(INTDIR)\" /Fd"$(OUTDIR)\aprutil-1" /FD /c
 # ADD BASE RSC /l 0x409 /d "_DEBUG"
 # ADD RSC /l 0x409 /d "_DEBUG"
 BSC32=bscmake.exe
@@ -90,7 +90,7 @@ LIB32=link.exe -lib
 # PROP Intermediate_Dir "x64\LibR"
 # PROP Target_Dir ""
 # ADD BASE CPP /nologo /MD /W3 /O2 /D "WIN32" /D "NDEBUG" /D "_WINDOWS" /FD /c
-# ADD CPP /nologo /MD /W3 /Zi /O2 /Oy- /I "./include" /I "../apr/include" /I "./include/private" /I "../apr-iconv/include" /I "./dbm/sdbm" /I "./xml/expat/lib" /D "NDEBUG" /D "APR_DECLARE_STATIC" /D "APU_DECLARE_STATIC" /D "API_DECLARE_STATIC" /D "APU_USE_SDBM" /D "XML_STATIC" /D "WIN32" /D "_WINDOWS" /Fo"$(INTDIR)\" /Fd"$(OUTDIR)\aprutil-1" /FD /c
+# ADD CPP /nologo /MD /W3 /Zi /O2 /Oy- /I "./include" /I "../apr/include" /I "./include/private" /I "../apr-iconv/include" /I "./dbm/sdbm" /I "./xml/expat/lib" /D "NDEBUG" /D "APR_DECLARE_STATIC" /D "APU_DECLARE_STATIC" /D "API_DECLARE_STATIC" /D "APU_USE_SDBM" /D "HAVE_SQL_H" /D "XML_STATIC" /D "WIN32" /D "_WINDOWS" /Fo"$(INTDIR)\" /Fd"$(OUTDIR)\aprutil-1" /FD /c
 # ADD BASE RSC /l 0x409 /d "NDEBUG"
 # ADD RSC /l 0x409 /d "NDEBUG"
 BSC32=bscmake.exe
@@ -114,7 +114,7 @@ LIB32=link.exe -lib
 # PROP Ignore_Export_Lib 0
 # PROP Target_Dir ""
 # ADD BASE CPP /nologo /MDd /W3 /Zi /Od /D "WIN32" /D "_DEBUG" /D "_WINDOWS" /FD /EHsc /c
-# ADD CPP /nologo /MDd /W3 /Zi /Od /I "./include" /I "../apr/include" /I "./include/private" /I "../apr-iconv/include" /I "./dbm/sdbm" /I "./xml/expat/lib" /D "_DEBUG" /D "APR_DECLARE_STATIC" /D "APU_DECLARE_STATIC" /D "API_DECLARE_STATIC" /D "APU_USE_SDBM" /D "XML_STATIC" /D "WIN32" /D "_WINDOWS" /Fo"$(INTDIR)\" /Fd"$(OUTDIR)\aprutil-1" /FD /EHsc /c
+# ADD CPP /nologo /MDd /W3 /Zi /Od /I "./include" /I "../apr/include" /I "./include/private" /I "../apr-iconv/include" /I "./dbm/sdbm" /I "./xml/expat/lib" /D "_DEBUG" /D "APR_DECLARE_STATIC" /D "APU_DECLARE_STATIC" /D "API_DECLARE_STATIC" /D "APU_USE_SDBM" /D "HAVE_SQL_H" /D "XML_STATIC" /D "WIN32" /D "_WINDOWS" /Fo"$(INTDIR)\" /Fd"$(OUTDIR)\aprutil-1" /FD /EHsc /c
 # ADD BASE RSC /l 0x409 /d "_DEBUG"
 # ADD RSC /l 0x409 /d "_DEBUG"
 BSC32=bscmake.exe
@@ -223,7 +223,19 @@ SOURCE=.\dbd\apr_dbd.c
 # End Source File
 # Begin Source File
 
+SOURCE=.\dbd\apr_dbd_freetds.c
+# End Source File
+# Begin Source File
+
 SOURCE=.\dbd\apr_dbd_mysql.c
+# End Source File
+# Begin Source File
+
+SOURCE=.\dbd\apr_dbd_odbc.c
+# End Source File
+# Begin Source File
+
+SOURCE=.\dbd\apr_dbd_oracle.c
 # End Source File
 # Begin Source File
 
@@ -283,11 +295,27 @@ SOURCE=.\ldap\apr_ldap_init.c
 # End Source File
 # Begin Source File
 
-SOURCE=.\ldap\apr_ldap_url.c
+SOURCE=.\ldap\apr_ldap_option.c
 # End Source File
 # Begin Source File
 
-SOURCE=.\ldap\apr_ldap_option.c
+SOURCE=.\ldap\apr_ldap_rebind.c
+# End Source File
+# Begin Source File
+
+SOURCE=.\ldap\apr_ldap_stub.c
+# End Source File
+# Begin Source File
+
+SOURCE=.\ldap\apr_ldap_url.c
+# End Source File
+# End Group
+# Begin Group "memcache"
+
+# PROP Default_Filter ""
+# Begin Source File
+
+SOURCE=.\memcache\apr_memcache.c
 # End Source File
 # End Group
 # Begin Group "misc"
@@ -296,6 +324,10 @@ SOURCE=.\ldap\apr_ldap_option.c
 # Begin Source File
 
 SOURCE=.\misc\apr_date.c
+# End Source File
+# Begin Source File
+
+SOURCE=.\misc\apu_dso.c
 # End Source File
 # Begin Source File
 
@@ -308,6 +340,10 @@ SOURCE=.\misc\apr_reslist.c
 # Begin Source File
 
 SOURCE=.\misc\apr_rmm.c
+# End Source File
+# Begin Source File
+
+SOURCE=.\misc\apr_thread_pool.c
 # End Source File
 # Begin Source File
 
@@ -691,6 +727,10 @@ SOURCE=.\include\apr_md5.h
 # End Source File
 # Begin Source File
 
+SOURCE=.\include\apr_memcache.h
+# End Source File
+# Begin Source File
+
 SOURCE=.\include\apr_optional.h
 # End Source File
 # Begin Source File
@@ -720,6 +760,10 @@ SOURCE=.\include\apr_sha1.h
 # Begin Source File
 
 SOURCE=.\include\apr_strmatch.h
+# End Source File
+# Begin Source File
+
+SOURCE=.\include\apr_thread_pool.h
 # End Source File
 # Begin Source File
 

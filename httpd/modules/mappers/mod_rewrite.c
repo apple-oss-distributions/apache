@@ -227,6 +227,8 @@ typedef struct {
     char *(*func)(request_rec *,   /* function pointer for internal maps  */
                   char *);
     char **argv;                   /* argv of the external rewrite map    */
+    const char *checkfile2;        /* filename to check for map existence
+                                      NULL if only one file               */
 } rewritemap_entry;
 
 /* special pattern types for RewriteCond */
@@ -1551,6 +1553,21 @@ static char *lookup_map(request_rec *r, char *name, char *key)
             ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, r,
                           "mod_rewrite: can't access DBM RewriteMap file %s",
                           s->checkfile);
+        }
+        else if(s->checkfile2 != NULL) {
+            apr_finfo_t st2;
+
+            rv = apr_stat(&st2, s->checkfile2, APR_FINFO_MIN, r->pool);
+            if (rv != APR_SUCCESS) {
+                ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, r,
+                              "mod_rewrite: can't access DBM RewriteMap "
+                              "file %s", s->checkfile2);
+            }
+            else if(st2.mtime > st.mtime) {
+                st.mtime = st2.mtime;
+            }
+        }
+        if(rv != APR_SUCCESS) {
             rewritelog((r, 1, NULL,
                         "can't open DBM RewriteMap file, see error log"));
             return NULL;
@@ -2322,6 +2339,8 @@ static void add_cookie(request_rec *r, char *s)
     char *domain;
     char *expires;
     char *path;
+    char *secure;
+    char *httponly;
 
     char *tok_cntx;
     char *cookie;
@@ -2346,6 +2365,8 @@ static void add_cookie(request_rec *r, char *s)
 
             expires = apr_strtok(NULL, ":", &tok_cntx);
             path = expires ? apr_strtok(NULL, ":", &tok_cntx) : NULL;
+            secure = path ? apr_strtok(NULL, ":", &tok_cntx) : NULL;
+            httponly = secure ? apr_strtok(NULL, ":", &tok_cntx) : NULL;
 
             if (expires) {
                 apr_time_exp_t tms;
@@ -2366,6 +2387,16 @@ static void add_cookie(request_rec *r, char *s)
                                  "; domain=", domain,
                                  expires ? "; expires=" : NULL,
                                  expires ? exp_time : NULL,
+                                 (secure && (!strcasecmp(secure, "true")
+                                             || !strcmp(secure, "1")
+                                             || !strcasecmp(secure,
+                                                            "secure"))) ?
+                                  "; secure" : NULL,
+                                 (httponly && (!strcasecmp(httponly, "true")
+                                               || !strcmp(httponly, "1")
+                                               || !strcasecmp(httponly,
+                                                              "HttpOnly"))) ?
+                                  "; HttpOnly" : NULL,
                                  NULL);
 
             apr_table_addn(rmain->err_headers_out, "Set-Cookie", cookie);
@@ -2822,6 +2853,7 @@ static const char *cmd_rewritemap(cmd_parms *cmd, void *dconf, const char *a1,
         newmap->type      = MAPTYPE_TXT;
         newmap->datafile  = fname;
         newmap->checkfile = fname;
+        newmap->checkfile2= NULL;
         newmap->cachename = apr_psprintf(cmd->pool, "%pp:%s",
                                          (void *)cmd->server, a1);
     }
@@ -2834,11 +2866,11 @@ static const char *cmd_rewritemap(cmd_parms *cmd, void *dconf, const char *a1,
         newmap->type      = MAPTYPE_RND;
         newmap->datafile  = fname;
         newmap->checkfile = fname;
+        newmap->checkfile2= NULL;
         newmap->cachename = apr_psprintf(cmd->pool, "%pp:%s",
                                          (void *)cmd->server, a1);
     }
     else if (strncasecmp(a2, "dbm", 3) == 0) {
-        const char *ignored_fname;
         apr_status_t rv;
 
         newmap->type = MAPTYPE_DBM;
@@ -2873,7 +2905,7 @@ static const char *cmd_rewritemap(cmd_parms *cmd, void *dconf, const char *a1,
 
         rv = apr_dbm_get_usednames_ex(cmd->pool, newmap->dbmtype,
                                       newmap->datafile, &newmap->checkfile,
-                                      &ignored_fname);
+                                      &newmap->checkfile2);
         if (rv != APR_SUCCESS) {
             return apr_pstrcat(cmd->pool, "RewriteMap: dbm type ",
                                newmap->dbmtype, " is invalid", NULL);
@@ -2892,12 +2924,14 @@ static const char *cmd_rewritemap(cmd_parms *cmd, void *dconf, const char *a1,
         newmap->type      = MAPTYPE_PRG;
         newmap->datafile  = NULL;
         newmap->checkfile = newmap->argv[0];
+        newmap->checkfile2= NULL;
         newmap->cachename = NULL;
     }
     else if (strncasecmp(a2, "int:", 4) == 0) {
         newmap->type      = MAPTYPE_INT;
         newmap->datafile  = NULL;
         newmap->checkfile = NULL;
+        newmap->checkfile2= NULL;
         newmap->cachename = NULL;
         newmap->func      = (char *(*)(request_rec *,char *))
                             apr_hash_get(mapfunc_hash, a2+4, strlen(a2+4));
@@ -2915,6 +2949,7 @@ static const char *cmd_rewritemap(cmd_parms *cmd, void *dconf, const char *a1,
         newmap->type      = MAPTYPE_TXT;
         newmap->datafile  = fname;
         newmap->checkfile = fname;
+        newmap->checkfile2= NULL;
         newmap->cachename = apr_psprintf(cmd->pool, "%pp:%s",
                                          (void *)cmd->server, a1);
     }
@@ -4034,7 +4069,6 @@ static int pre_config(apr_pool_t *pconf,
     APR_OPTIONAL_FN_TYPE(ap_register_rewrite_mapfunc) *map_pfn_register;
 
     /* register int: rewritemap handlers */
-    mapfunc_hash = apr_hash_make(pconf);
     map_pfn_register = APR_RETRIEVE_OPTIONAL_FN(ap_register_rewrite_mapfunc);
     if (map_pfn_register) {
         map_pfn_register("tolower", rewrite_mapfunc_tolower);
@@ -4287,6 +4321,10 @@ static int hook_uri2file(request_rec *r)
                 return HTTP_FORBIDDEN;
             }
 
+            if (rulestatus == ACTION_NOESCAPE) {
+                apr_table_setn(r->notes, "proxy-nocanon", "1");
+            }
+
             /* make sure the QUERY_STRING and
              * PATH_INFO parts get incorporated
              */
@@ -4294,8 +4332,9 @@ static int hook_uri2file(request_rec *r)
                 r->filename = apr_pstrcat(r->pool, r->filename,
                                           r->path_info, NULL);
             }
-            if (r->args != NULL &&
-                r->uri == r->unparsed_uri) {
+            if ((r->args != NULL)
+            	&& ((r->proxyreq == PROXYREQ_PROXY) 
+                    || (rulestatus == ACTION_NOESCAPE))) {
                 /* see proxy_http:proxy_http_canon() */
                 r->filename = apr_pstrcat(r->pool, r->filename,
                                           "?", r->args, NULL);
@@ -4829,6 +4868,10 @@ static void register_hooks(apr_pool_t *p)
      */
     static const char * const aszPre[]={ "mod_proxy.c", NULL };
 
+    /* make the hashtable before registering the function, so that
+     * other modules are prevented from accessing uninitialized memory.
+     */
+    mapfunc_hash = apr_hash_make(p);
     APR_REGISTER_OPTIONAL_FN(ap_register_rewrite_mapfunc);
 
     ap_hook_handler(handler_redirect, NULL, NULL, APR_HOOK_MIDDLE);

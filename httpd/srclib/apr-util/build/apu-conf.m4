@@ -191,8 +191,7 @@ AC_DEFUN([APU_FIND_LDAPLIB], [
     unset ac_cv_lib_${ldaplib}___ldap_init
     AC_CHECK_LIB(${ldaplib}, ldap_init, 
       [
-        APR_ADDTO(APRUTIL_EXPORT_LIBS,[-l${ldaplib} ${extralib}])
-        APR_ADDTO(APRUTIL_LIBS,[-l${ldaplib} ${extralib}])
+        LDADD_ldap="-l${ldaplib} ${extralib}"
         AC_CHECK_LIB(${ldaplib}, ldapssl_client_init, apu_has_ldapssl_client_init="1", , ${extralib})
         AC_CHECK_LIB(${ldaplib}, ldapssl_client_deinit, apu_has_ldapssl_client_deinit="1", , ${extralib})
         AC_CHECK_LIB(${ldaplib}, ldapssl_add_trusted_cert, apu_has_ldapssl_add_trusted_cert="1", , ${extralib})
@@ -227,8 +226,10 @@ apu_has_ldap_novell="0"
 apu_has_ldap_microsoft="0"
 apu_has_ldap_netscape="0"
 apu_has_ldap_mozilla="0"
+apu_has_ldap_tivoli="0"
 apu_has_ldap_zos="0"
 apu_has_ldap_other="0"
+LDADD_ldap=""
 
 AC_ARG_WITH(ldap-include,[  --with-ldap-include=path  path to ldap include files with trailing slash])
 AC_ARG_WITH(ldap-lib,[  --with-ldap-lib=path    path to ldap lib file])
@@ -329,11 +330,17 @@ dnl The iPlanet C SDK 5.0 is as yet untested...
                                            apr_cv_ldap_toolkit="Mozilla"])
         fi
         if test "x$apr_cv_ldap_toolkit" = "x"; then
+          AC_EGREP_CPP([International Business Machines], [$lber_h
+                       $ldap_h
+                       LDAP_VENDOR_NAME], [apu_has_ldap_tivoli="1"
+                                           apr_cv_ldap_toolkit="Tivoli"])
+        fi
+        if test "x$apr_cv_ldap_toolkit" = "x"; then
           case "$host" in
           *-ibm-os390)
             AC_EGREP_CPP([IBM], [$lber_h
                                  $ldap_h], [apu_has_ldap_zos="1"
-                                            apr_cv_ldap_toolkit="zOS"])
+                                            apr_cv_ldap_toolkit="z/OS"])
             ;;
           esac
         fi
@@ -348,6 +355,36 @@ dnl The iPlanet C SDK 5.0 is as yet untested...
     LDFLAGS=$save_ldflags
     LIBS=$save_libs
   ])
+
+if test "$apu_has_ldap_openldap" = "1"; then
+    save_cppflags="$CPPFLAGS"
+    save_ldflags="$LDFLAGS"
+    save_libs="$LIBS"
+
+    CPPFLAGS="$CPPFLAGS $APRUTIL_INCLUDES"
+    LDFLAGS="$LDFLAGS $APRUTIL_LDFLAGS"
+    AC_CACHE_CHECK([style of ldap_set_rebind_proc routine], ac_cv_ldap_set_rebind_proc_style,
+    APR_TRY_COMPILE_NO_WARNING([
+    #ifdef HAVE_LBER_H
+    #include <lber.h>
+    #endif
+    #ifdef HAVE_LDAP_H
+    #include <ldap.h>
+    #endif
+    ], [
+    int tmp = ldap_set_rebind_proc((LDAP *)0, (LDAP_REBIND_PROC *)0, (void *)0);
+    /* use tmp to suppress the warning */
+    tmp=0;
+    ], ac_cv_ldap_set_rebind_proc_style=three, ac_cv_ldap_set_rebind_proc_style=two))
+
+    if test "$ac_cv_ldap_set_rebind_proc_style" = "three"; then
+        AC_DEFINE(LDAP_SET_REBIND_PROC_THREE, 1, [Define if ldap_set_rebind_proc takes three arguments])
+    fi
+
+    CPPFLAGS="$save_cppflags"
+    LDFLAGS="$save_ldflags"
+    LIBS="$save_libs"
+fi
 
 AC_SUBST(ldap_h)
 AC_SUBST(lber_h)
@@ -366,8 +403,10 @@ AC_SUBST(apu_has_ldap_novell)
 AC_SUBST(apu_has_ldap_microsoft)
 AC_SUBST(apu_has_ldap_netscape)
 AC_SUBST(apu_has_ldap_mozilla)
+AC_SUBST(apu_has_ldap_tivoli)
 AC_SUBST(apu_has_ldap_zos)
 AC_SUBST(apu_has_ldap_other)
+AC_SUBST(LDADD_ldap)
 
 ])
 
