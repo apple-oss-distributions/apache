@@ -40,6 +40,9 @@ static void launch_child(abts_case *tc, apr_proc_t *proc, const char *arg1, apr_
     rv = apr_procattr_error_check_set(procattr, 1);
     APR_ASSERT_SUCCESS(tc, "Couldn't set error check in procattr", rv);
 
+    rv = apr_procattr_cmdtype_set(procattr, APR_PROGRAM_ENV);
+    APR_ASSERT_SUCCESS(tc, "Couldn't set copy environment", rv);
+
     args[0] = "sockchild" EXTENSION;
     args[1] = arg1;
     args[2] = NULL;
@@ -71,6 +74,12 @@ static void test_addr_info(abts_case *tc, void *data)
     rv = apr_sockaddr_info_get(&sa, "127.0.0.1", APR_UNSPEC, 80, 0, p);
     APR_ASSERT_SUCCESS(tc, "Problem generating sockaddr", rv);
     ABTS_STR_EQUAL(tc, "127.0.0.1", sa->hostname);
+
+    rv = apr_sockaddr_info_get(&sa, "127.0.0.1", APR_UNSPEC, 0, 0, p);
+    APR_ASSERT_SUCCESS(tc, "Problem generating sockaddr", rv);
+    ABTS_STR_EQUAL(tc, "127.0.0.1", sa->hostname);
+    ABTS_INT_EQUAL(tc, 0, sa->port);
+    ABTS_INT_EQUAL(tc, 0, ntohs(sa->sa.sin.sin_port));
 }
 
 static void test_serv_by_name(abts_case *tc, void *data)
@@ -195,6 +204,67 @@ static void test_recv(abts_case *tc, void *data)
     APR_ASSERT_SUCCESS(tc, "Problem closing socket", rv);
 }
 
+static void test_atreadeof(abts_case *tc, void *data)
+{
+    apr_status_t rv;
+    apr_socket_t *sock;
+    apr_socket_t *sock2;
+    apr_proc_t proc;
+    apr_size_t length = STRLEN;
+    char datastr[STRLEN];
+    int atreadeof = -1;
+
+    sock = setup_socket(tc);
+    if (!sock) return;
+
+    launch_child(tc, &proc, "write", p);
+
+    rv = apr_socket_accept(&sock2, sock, p);
+    APR_ASSERT_SUCCESS(tc, "Problem with receiving connection", rv);
+
+    /* Check that the remote socket is still open */
+    rv = apr_socket_atreadeof(sock2, &atreadeof);
+    APR_ASSERT_SUCCESS(tc, "Determine whether at EOF, #1", rv);
+    ABTS_INT_EQUAL(tc, 0, atreadeof);
+
+    memset(datastr, 0, STRLEN);
+    apr_socket_recv(sock2, datastr, &length);
+
+    /* Make sure that the server received the data we sent */
+    ABTS_STR_EQUAL(tc, DATASTR, datastr);
+    ABTS_SIZE_EQUAL(tc, strlen(datastr), wait_child(tc, &proc));
+
+    /* The child is dead, so should be the remote socket */
+    rv = apr_socket_atreadeof(sock2, &atreadeof);
+    APR_ASSERT_SUCCESS(tc, "Determine whether at EOF, #2", rv);
+    ABTS_INT_EQUAL(tc, 1, atreadeof);
+
+    rv = apr_socket_close(sock2);
+    APR_ASSERT_SUCCESS(tc, "Problem closing connected socket", rv);
+
+    launch_child(tc, &proc, "close", p);
+
+    rv = apr_socket_accept(&sock2, sock, p);
+    APR_ASSERT_SUCCESS(tc, "Problem with receiving connection", rv);
+
+    /* The child closed the socket as soon as it could... */
+    rv = apr_socket_atreadeof(sock2, &atreadeof);
+    APR_ASSERT_SUCCESS(tc, "Determine whether at EOF, #3", rv);
+    if (!atreadeof) { /* ... but perhaps not yet; wait a moment */
+        apr_sleep(apr_time_from_msec(5));
+        rv = apr_socket_atreadeof(sock2, &atreadeof);
+        APR_ASSERT_SUCCESS(tc, "Determine whether at EOF, #4", rv);
+    }
+    ABTS_INT_EQUAL(tc, 1, atreadeof);
+    wait_child(tc, &proc);
+
+    rv = apr_socket_close(sock2);
+    APR_ASSERT_SUCCESS(tc, "Problem closing connected socket", rv);
+
+    rv = apr_socket_close(sock);
+    APR_ASSERT_SUCCESS(tc, "Problem closing socket", rv);
+}
+
 static void test_timeout(abts_case *tc, void *data)
 {
     apr_status_t rv;
@@ -264,16 +334,20 @@ static void test_get_addr(abts_case *tc, void *data)
     apr_status_t rv;
     apr_socket_t *ld, *sd, *cd;
     apr_sockaddr_t *sa, *ca;
+    apr_pool_t *subp;
     char *a, *b;
 
-    ld = setup_socket(tc);
+    APR_ASSERT_SUCCESS(tc, "create subpool", apr_pool_create(&subp, p));
+
+    if ((ld = setup_socket(tc)) != APR_SUCCESS)
+        return;
 
     APR_ASSERT_SUCCESS(tc,
                        "get local address of bound socket",
                        apr_socket_addr_get(&sa, APR_LOCAL, ld));
 
     rv = apr_socket_create(&cd, sa->family, SOCK_STREAM,
-                           APR_PROTO_TCP, p);
+                           APR_PROTO_TCP, subp);
     APR_ASSERT_SUCCESS(tc, "create client socket", rv);
 
     APR_ASSERT_SUCCESS(tc, "enable non-block mode",
@@ -299,7 +373,7 @@ static void test_get_addr(abts_case *tc, void *data)
     }
 
     APR_ASSERT_SUCCESS(tc, "accept connection",
-                       apr_socket_accept(&sd, ld, p));
+                       apr_socket_accept(&sd, ld, subp));
     
     {
         /* wait for writability */
@@ -319,18 +393,38 @@ static void test_get_addr(abts_case *tc, void *data)
 
     APR_ASSERT_SUCCESS(tc, "get local address of server socket",
                        apr_socket_addr_get(&sa, APR_LOCAL, sd));
-
     APR_ASSERT_SUCCESS(tc, "get remote address of client socket",
                        apr_socket_addr_get(&ca, APR_REMOTE, cd));
-    
-    a = apr_psprintf(p, "%pI", sa);
-    b = apr_psprintf(p, "%pI", ca);
 
+    /* Test that the pool of the returned sockaddr objects exactly
+     * match the socket. */
+    ABTS_PTR_EQUAL(tc, subp, sa->pool);
+    ABTS_PTR_EQUAL(tc, subp, ca->pool);
+
+    /* Check equivalence. */
+    a = apr_psprintf(p, "%pI fam=%d", sa, sa->family);
+    b = apr_psprintf(p, "%pI fam=%d", ca, ca->family);
     ABTS_STR_EQUAL(tc, a, b);
+
+    /* Check pool of returned sockaddr, as above. */
+    APR_ASSERT_SUCCESS(tc, "get local address of client socket",
+                       apr_socket_addr_get(&sa, APR_LOCAL, cd));
+    APR_ASSERT_SUCCESS(tc, "get remote address of server socket",
+                       apr_socket_addr_get(&ca, APR_REMOTE, sd));
+
+    /* Check equivalence. */
+    a = apr_psprintf(p, "%pI fam=%d", sa, sa->family);
+    b = apr_psprintf(p, "%pI fam=%d", ca, ca->family);
+    ABTS_STR_EQUAL(tc, a, b);
+
+    ABTS_PTR_EQUAL(tc, subp, sa->pool);
+    ABTS_PTR_EQUAL(tc, subp, ca->pool);
                        
     apr_socket_close(cd);
     apr_socket_close(sd);
     apr_socket_close(ld);
+
+    apr_pool_destroy(subp);
 }
 
 abts_suite *testsock(abts_suite *suite)
@@ -342,6 +436,7 @@ abts_suite *testsock(abts_suite *suite)
     abts_run_test(suite, test_create_bind_listen, NULL);
     abts_run_test(suite, test_send, NULL);
     abts_run_test(suite, test_recv, NULL);
+    abts_run_test(suite, test_atreadeof, NULL);
     abts_run_test(suite, test_timeout, NULL);
     abts_run_test(suite, test_print_addr, NULL);
     abts_run_test(suite, test_get_addr, NULL);

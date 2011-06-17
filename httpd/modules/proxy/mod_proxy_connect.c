@@ -201,7 +201,7 @@ static int proxy_connect_handler(request_rec *r, proxy_worker *worker,
             return DECLINED;
         }
         else {
-            return HTTP_BAD_GATEWAY;
+            return HTTP_SERVICE_UNAVAILABLE;
         }
     }
 
@@ -288,6 +288,9 @@ static int proxy_connect_handler(request_rec *r, proxy_worker *worker,
 
     while (1) { /* Infinite loop until error (one side closes the connection) */
         if ((rv = apr_pollset_poll(pollset, -1, &pollcnt, &signalled)) != APR_SUCCESS) {
+            if (APR_STATUS_IS_EINTR(rv)) { 
+                continue;
+            }
             apr_socket_close(sock);
             ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, r, "proxy: CONNECT: error apr_poll()");
             return HTTP_INTERNAL_SERVER_ERROR;

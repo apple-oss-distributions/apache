@@ -93,8 +93,10 @@
 /** ...shifting sands of openssl... */
 #if (OPENSSL_VERSION_NUMBER >= 0x0090707f)
 # define MODSSL_D2I_SSL_SESSION_CONST    const
+# define MODSSL_SSL_CIPHER_CONST         const
 #else
 # define MODSSL_D2I_SSL_SESSION_CONST
+# define MODSSL_SSL_CIPHER_CONST
 #endif
 
 #if (OPENSSL_VERSION_NUMBER >= 0x00908000)
@@ -138,6 +140,10 @@ typedef int (modssl_read_bio_cb_fn)(char*,int,int,void*);
 #define HAVE_SSL_RAND_EGD /* since 9.5.1 */
 
 #define HAVE_SSL_X509V3_EXT_d2i
+
+#if (OPENSSL_VERSION_NUMBER >= 0x009080a0) && defined(OPENSSL_FIPS)
+#define HAVE_FIPS
+#endif
 
 #ifndef PEM_F_DEF_CALLBACK
 #ifdef PEM_F_PEM_DEF_CALLBACK

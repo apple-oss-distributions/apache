@@ -56,6 +56,7 @@ authdigestprovider	mod/mod_auth_digest.html#authdigestprovider
 authdigestqop	mod/mod_auth_digest.html#authdigestqop
 authdigestshmemsize	mod/mod_auth_digest.html#authdigestshmemsize
 authgroupfile	mod/mod_authz_groupfile.html#authgroupfile
+authldapbindauthoritative	mod/mod_authnz_ldap.html#authldapbindauthoritative
 authldapbinddn	mod/mod_authnz_ldap.html#authldapbinddn
 authldapbindpassword	mod/mod_authnz_ldap.html#authldapbindpassword
 authldapcharsetconfig	mod/mod_authnz_ldap.html#authldapcharsetconfig
@@ -91,7 +92,11 @@ cacheignorecachecontrol	mod/mod_cache.html#cacheignorecachecontrol
 cacheignoreheaders	mod/mod_cache.html#cacheignoreheaders
 cacheignorenolastmod	mod/mod_cache.html#cacheignorenolastmod
 cacheignorequerystring	mod/mod_cache.html#cacheignorequerystring
+cacheignoreurlsessionidentifiers	mod/mod_cache.html#cacheignoreurlsessionidentifiers
 cachelastmodifiedfactor	mod/mod_cache.html#cachelastmodifiedfactor
+cachelock	mod/mod_cache.html#cachelock
+cachelockmaxage	mod/mod_cache.html#cachelockmaxage
+cachelockpath	mod/mod_cache.html#cachelockpath
 cachemaxexpire	mod/mod_cache.html#cachemaxexpire
 cachemaxfilesize	mod/mod_disk_cache.html#cachemaxfilesize
 cacheminfilesize	mod/mod_disk_cache.html#cacheminfilesize
@@ -157,6 +162,7 @@ expiresdefault	mod/mod_expires.html#expiresdefault
 extendedstatus	mod/mod_status.html#extendedstatus
 extfilterdefine	mod/mod_ext_filter.html#extfilterdefine
 extfilteroptions	mod/mod_ext_filter.html#extfilteroptions
+fallbackresource	mod/mod_dir.html#fallbackresource
 fileetag	mod/core.html#fileetag
 files	mod/core.html#files
 filesmatch	mod/core.html#filesmatch
@@ -168,6 +174,7 @@ filtertrace	mod/mod_filter.html#filtertrace
 forcelanguagepriority	mod/mod_negotiation.html#forcelanguagepriority
 forcetype	mod/core.html#forcetype
 forensiclog	mod/mod_log_forensic.html#forensiclog
+gprofdir	mod/core.html#gprofdir
 gracefulshutdowntimeout	mod/mpm_common.html#gracefulshutdowntimeout
 group	mod/mpm_common.html#group
 header	mod/mod_headers.html#header
@@ -255,6 +262,7 @@ options	mod/core.html#options
 order	mod/mod_authz_host.html#order
 passenv	mod/mod_env.html#passenv
 pidfile	mod/mpm_common.html#pidfile
+protocol	mod/core.html#protocol
 protocolecho	mod/mod_echo.html#protocolecho
 proxy	mod/mod_proxy.html#proxy
 proxybadheader	mod/mod_proxy.html#proxybadheader
@@ -276,6 +284,8 @@ proxyreceivebuffersize	mod/mod_proxy.html#proxyreceivebuffersize
 proxyremote	mod/mod_proxy.html#proxyremote
 proxyremotematch	mod/mod_proxy.html#proxyremotematch
 proxyrequests	mod/mod_proxy.html#proxyrequests
+proxyscgiinternalredirect	mod/mod_proxy_scgi.html#proxyscgiinternalredirect
+proxyscgisendfile	mod/mod_proxy_scgi.html#proxyscgisendfile
 proxyset	mod/mod_proxy.html#proxyset
 proxystatus	mod/mod_proxy.html#proxystatus
 proxytimeout	mod/mod_proxy.html#proxytimeout
@@ -294,6 +304,7 @@ removelanguage	mod/mod_mime.html#removelanguage
 removeoutputfilter	mod/mod_mime.html#removeoutputfilter
 removetype	mod/mod_mime.html#removetype
 requestheader	mod/mod_headers.html#requestheader
+requestreadtimeout	mod/mod_reqtimeout.html#requestreadtimeout
 require	mod/core.html#require
 rewritebase	mod/mod_rewrite.html#rewritebase
 rewritecond	mod/mod_rewrite.html#rewritecond
@@ -337,6 +348,8 @@ setoutputfilter	mod/core.html#setoutputfilter
 ssienableaccess	mod/mod_include.html#ssienableaccess
 ssiendtag	mod/mod_include.html#ssiendtag
 ssierrormsg	mod/mod_include.html#ssierrormsg
+ssietag	mod/mod_include.html#ssietag
+ssilastmodified	mod/mod_include.html#ssilastmodified
 ssistarttag	mod/mod_include.html#ssistarttag
 ssitimeformat	mod/mod_include.html#ssitimeformat
 ssiundefinedecho	mod/mod_include.html#ssiundefinedecho
@@ -352,7 +365,9 @@ sslcertificatekeyfile	mod/mod_ssl.html#sslcertificatekeyfile
 sslciphersuite	mod/mod_ssl.html#sslciphersuite
 sslcryptodevice	mod/mod_ssl.html#sslcryptodevice
 sslengine	mod/mod_ssl.html#sslengine
+sslfips	mod/mod_ssl.html#sslfips
 sslhonorcipherorder	mod/mod_ssl.html#sslhonorcipherorder
+sslinsecurerenegotiation	mod/mod_ssl.html#sslinsecurerenegotiation
 sslmutex	mod/mod_ssl.html#sslmutex
 ssloptions	mod/mod_ssl.html#ssloptions
 sslpassphrasedialog	mod/mod_ssl.html#sslpassphrasedialog

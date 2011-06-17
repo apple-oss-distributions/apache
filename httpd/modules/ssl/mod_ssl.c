@@ -99,6 +99,9 @@ static const command_rec ssl_config_cmds[] = {
     SSL_CMD_SRV(Engine, TAKE1,
                 "SSL switch for the protocol engine "
                 "(`on', `off')")
+    SSL_CMD_SRV(FIPS, FLAG,
+                "Enable FIPS-140 mode "
+                "(`on', `off')")
     SSL_CMD_ALL(CipherSuite, TAKE1,
                 "Colon-delimited list of permitted SSL Ciphers "
                 "(`XXX:...:XXX' - see manual)")
@@ -143,6 +146,8 @@ static const command_rec ssl_config_cmds[] = {
                 "(`[+-][SSLv2|SSLv3|TLSv1] ...' - see manual)")
     SSL_CMD_SRV(HonorCipherOrder, FLAG,
                 "Use the server's cipher ordering preference")
+    SSL_CMD_SRV(InsecureRenegotiation, FLAG,
+                "Enable support for insecure renegotiation")
     SSL_CMD_ALL(UserName, TAKE1,
                 "Set user name to SSL variable value")
     SSL_CMD_SRV(StrictSNIVHostCheck, FLAG,

@@ -271,10 +271,18 @@ static int pass_brigade(apr_bucket_alloc_t *bucket_alloc,
         ap_log_error(APLOG_MARK, APLOG_ERR, status, r->server,
                      "proxy: pass request body failed to %pI (%s)",
                      conn->addr, conn->hostname);
-        if (origin->aborted) { 
+        if (origin->aborted) {
+            const char *ssl_note;
+
+            if (((ssl_note = apr_table_get(origin->notes, "SSL_connect_rv"))
+                != NULL) && (strcmp(ssl_note, "err") == 0)) {
+                return ap_proxyerror(r, HTTP_INTERNAL_SERVER_ERROR,
+                                     "Error during SSL Handshake with"
+                                     " remote server");
+            }
             return APR_STATUS_IS_TIMEUP(status) ? HTTP_GATEWAY_TIME_OUT : HTTP_BAD_GATEWAY;
         }
-        else { 
+        else {
             return HTTP_BAD_REQUEST; 
         }
     }
@@ -1369,6 +1377,10 @@ apr_status_t ap_proxy_http_process_response(apr_pool_t * p, request_rec *r,
         {"Keep-Alive", "Proxy-Authenticate", "TE", "Trailer", "Upgrade", NULL};
     int i;
     const char *te = NULL;
+    int original_status = r->status;
+    int proxy_status = OK;
+    const char *original_status_line = r->status_line;
+    const char *proxy_status_line = NULL;
 
     bb = apr_brigade_create(p, c->bucket_alloc);
     pass_bb = apr_brigade_create(p, c->bucket_alloc);
@@ -1396,8 +1408,8 @@ apr_status_t ap_proxy_http_process_response(apr_pool_t * p, request_rec *r,
         if (len <= 0) {
             ap_log_rerror(APLOG_MARK, APLOG_ERR, rc, r,
                           "proxy: error reading status line from remote "
-                          "server %s", backend->hostname);
-            if (rc == APR_TIMEUP) {
+                          "server %s:%d", backend->hostname, backend->port);
+            if (APR_STATUS_IS_TIMEUP(rc)) {
                 ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
                               "proxy: read timeout");
             }
@@ -1413,14 +1425,14 @@ apr_status_t ap_proxy_http_process_response(apr_pool_t * p, request_rec *r,
              * we normally would handle timeouts
              */
             if (r->proxyreq == PROXYREQ_REVERSE && c->keepalives &&
-                rc != APR_TIMEUP) {
+                !APR_STATUS_IS_TIMEUP(rc)) {
                 apr_bucket *eos;
 
                 ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
                               "proxy: Closing connection to client because"
-                              " reading from backend server %s failed. Number"
-                              " of keepalives %i", backend->hostname, 
-                              c->keepalives);
+                              " reading from backend server %s:%d failed."
+                              " Number of keepalives %i", backend->hostname, 
+                              backend->port, c->keepalives);
                 ap_proxy_backend_broke(r, bb);
                 /*
                  * Add an EOC bucket to signal the ap_http_header_filter
@@ -1445,14 +1457,17 @@ apr_status_t ap_proxy_http_process_response(apr_pool_t * p, request_rec *r,
                     APR_BUCKET_INSERT_BEFORE(eos, e);
                 }
                 ap_pass_brigade(r->output_filters, bb);
+                /* Mark the backend connection for closing */
+                backend->close = 1;
                 /* Need to return OK to avoid sending an error message */
                 return OK;
             }
             else if (!c->keepalives) {
                      ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
                                    "proxy: NOT Closing connection to client"
-                                   " although reading from backend server %s"
-                                   " failed.", backend->hostname);
+                                   " although reading from backend server %s:%d"
+                                   " failed.", backend->hostname,
+                                   backend->port);
             }
             return ap_proxyerror(r, HTTP_BAD_GATEWAY,
                                  "Error reading from remote server");
@@ -1466,14 +1481,13 @@ apr_status_t ap_proxy_http_process_response(apr_pool_t * p, request_rec *r,
         if (apr_date_checkmask(buffer, "HTTP/#.# ###*")) {
             int major, minor;
 
-            if (2 != sscanf(buffer, "HTTP/%u.%u", &major, &minor)) {
-                major = 1;
-                minor = 1;
-            }
+            major = buffer[5] - '0';
+            minor = buffer[7] - '0';
+
             /* If not an HTTP/1 message or
              * if the status line was > 8192 bytes
              */
-            else if ((buffer[5] != '1') || (len >= sizeof(buffer)-1)) {
+            if ((major != 1) || (len >= sizeof(buffer)-1)) {
                 return ap_proxyerror(r, HTTP_BAD_GATEWAY,
                 apr_pstrcat(p, "Corrupt status line returned by remote "
                             "server: ", buffer, NULL));
@@ -1482,7 +1496,7 @@ apr_status_t ap_proxy_http_process_response(apr_pool_t * p, request_rec *r,
 
             keepchar = buffer[12];
             buffer[12] = '\0';
-            r->status = atoi(&buffer[9]);
+            proxy_status = atoi(&buffer[9]);
 
             if (keepchar != '\0') {
                 buffer[12] = keepchar;
@@ -1493,8 +1507,13 @@ apr_status_t ap_proxy_http_process_response(apr_pool_t * p, request_rec *r,
                 buffer[12] = ' ';
                 buffer[13] = '\0';
             }
-            r->status_line = apr_pstrdup(p, &buffer[9]);
+            proxy_status_line = apr_pstrdup(p, &buffer[9]);
 
+            /* The status out of the front is the same as the status coming in
+             * from the back, until further notice.
+             */
+            r->status = proxy_status;
+            r->status_line = proxy_status_line;
 
             /* read the headers. */
             /* N.B. for HTTP/1.0 clients, we have to fold line-wrapped headers*/
@@ -1552,8 +1571,9 @@ apr_status_t ap_proxy_http_process_response(apr_pool_t * p, request_rec *r,
                  */
                 apr_table_unset(r->headers_out, "Content-Length");
                 ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
-                             "proxy: server %s returned Transfer-Encoding"
-                             " and Content-Length", backend->hostname);
+                             "proxy: server %s:%d returned Transfer-Encoding"
+                             " and Content-Length", backend->hostname,
+                             backend->port);
                 backend->close += 1;
             }
 
@@ -1570,7 +1590,7 @@ apr_status_t ap_proxy_http_process_response(apr_pool_t * p, request_rec *r,
             if ((buf = apr_table_get(r->headers_out, "Content-Type"))) {
                 ap_set_content_type(r, apr_pstrdup(p, buf));
             }
-            if (!ap_is_HTTP_INFO(r->status)) {
+            if (!ap_is_HTTP_INFO(proxy_status)) {
                 ap_proxy_pre_http_request(origin, rp);
             }
 
@@ -1621,7 +1641,7 @@ apr_status_t ap_proxy_http_process_response(apr_pool_t * p, request_rec *r,
             backend->close += 1;
         }
 
-        if (ap_is_HTTP_INFO(r->status)) {
+        if (ap_is_HTTP_INFO(proxy_status)) {
             interim_response++;
         }
         else {
@@ -1660,7 +1680,7 @@ apr_status_t ap_proxy_http_process_response(apr_pool_t * p, request_rec *r,
          * ProxyPassReverse/etc from here to ap_proxy_read_headers
          */
 
-        if ((r->status == 401) && (conf->error_override)) {
+        if ((proxy_status == 401) && (conf->error_override)) {
             const char *buf;
             const char *wa = "WWW-Authenticate";
             if ((buf = apr_table_get(r->headers_out, wa))) {
@@ -1700,8 +1720,8 @@ apr_status_t ap_proxy_http_process_response(apr_pool_t * p, request_rec *r,
         /* send body - but only if a body is expected */
         if ((!r->header_only) &&                   /* not HEAD request */
             !interim_response &&                   /* not any 1xx response */
-            (r->status != HTTP_NO_CONTENT) &&      /* not 204 */
-            (r->status != HTTP_NOT_MODIFIED)) {    /* not 304 */
+            (proxy_status != HTTP_NO_CONTENT) &&      /* not 204 */
+            (proxy_status != HTTP_NOT_MODIFIED)) {    /* not 304 */
 
             /* We need to copy the output headers and treat them as input
              * headers as well.  BUT, we need to do this before we remove
@@ -1727,10 +1747,21 @@ apr_status_t ap_proxy_http_process_response(apr_pool_t * p, request_rec *r,
              * if we are overriding the errors, we can't put the content
              * of the page into the brigade
              */
-            if (!conf->error_override || !ap_is_HTTP_ERROR(r->status)) {
+            if (!conf->error_override || !ap_is_HTTP_ERROR(proxy_status)) {
                 /* read the body, pass it to the output filters */
                 apr_read_type_e mode = APR_NONBLOCK_READ;
                 int finish = FALSE;
+
+                /* Handle the case where the error document is itself reverse
+                 * proxied and was successful. We must maintain any previous
+                 * error status so that an underlying error (eg HTTP_NOT_FOUND)
+                 * doesn't become an HTTP_OK.
+                 */
+                if (conf->error_override && !ap_is_HTTP_ERROR(proxy_status)
+                        && ap_is_HTTP_ERROR(original_status)) {
+                    r->status = original_status;
+                    r->status_line = original_status_line;
+                }
 
                 do {
                     apr_off_t readbytes;
@@ -1848,25 +1879,27 @@ apr_status_t ap_proxy_http_process_response(apr_pool_t * p, request_rec *r,
 
     if (conf->error_override) {
         /* the code above this checks for 'OK' which is what the hook expects */
-        if (!ap_is_HTTP_ERROR(r->status))
+        if (!ap_is_HTTP_ERROR(proxy_status)) {
             return OK;
+        }
         else {
             /* clear r->status for override error, otherwise ErrorDocument
              * thinks that this is a recursive error, and doesn't find the
              * custom error page
              */
-            int status = r->status;
             r->status = HTTP_OK;
             /* Discard body, if one is expected */
             if (!r->header_only && /* not HEAD request */
-                (status != HTTP_NO_CONTENT) && /* not 204 */
-                (status != HTTP_NOT_MODIFIED)) { /* not 304 */
-               ap_discard_request_body(rp);
-           }
-            return status;
+                (proxy_status != HTTP_NO_CONTENT) && /* not 204 */
+                (proxy_status != HTTP_NOT_MODIFIED)) { /* not 304 */
+                ap_discard_request_body(rp);
+            }
+            return proxy_status;
         }
-    } else
+    }
+    else {
         return OK;
+    }
 }
 
 static
@@ -1974,10 +2007,7 @@ static int proxy_http_handler(request_rec *r, proxy_worker *worker,
 
     /* Step Two: Make the Connection */
     if (ap_proxy_connect_backend(proxy_function, backend, worker, r->server)) {
-        if (r->proxyreq == PROXYREQ_PROXY)
-            status = HTTP_NOT_FOUND;
-        else
-            status = HTTP_SERVICE_UNAVAILABLE;
+        status = HTTP_SERVICE_UNAVAILABLE;
         goto cleanup;
     }
 

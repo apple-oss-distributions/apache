@@ -24,7 +24,8 @@
 <a href="../ja/mod/directives.html" hreflang="ja" rel="alternate" title="Japanese">&nbsp;ja&nbsp;</a> |
 <a href="../ko/mod/directives.html" hreflang="ko" rel="alternate" title="Korean">&nbsp;ko&nbsp;</a> |
 <a href="../ru/mod/directives.html" hreflang="ru" rel="alternate" title="Russian">&nbsp;ru&nbsp;</a> |
-<a href="../tr/mod/directives.html" hreflang="tr" rel="alternate" title="Türkçe">&nbsp;tr&nbsp;</a></p>
+<a href="../tr/mod/directives.html" hreflang="tr" rel="alternate" title="Türkçe">&nbsp;tr&nbsp;</a> |
+<a href="../zh-cn/mod/directives.html" hreflang="zh-cn" rel="alternate" title="Simplified Chinese">&nbsp;zh-cn&nbsp;</a></p>
 </div>
 
     <p>
@@ -95,6 +96,7 @@
 <li><a href="mod_auth_digest.html#authdigestqop">AuthDigestQop</a></li>
 <li><a href="mod_auth_digest.html#authdigestshmemsize">AuthDigestShmemSize</a></li>
 <li><a href="mod_authz_groupfile.html#authgroupfile">AuthGroupFile</a></li>
+<li><a href="mod_authnz_ldap.html#authldapbindauthoritative">AuthLDAPBindAuthoritative</a></li>
 <li><a href="mod_authnz_ldap.html#authldapbinddn">AuthLDAPBindDN</a></li>
 <li><a href="mod_authnz_ldap.html#authldapbindpassword">AuthLDAPBindPassword</a></li>
 <li><a href="mod_authnz_ldap.html#authldapcharsetconfig">AuthLDAPCharsetConfig</a></li>
@@ -130,7 +132,11 @@
 <li><a href="mod_cache.html#cacheignoreheaders">CacheIgnoreHeaders</a></li>
 <li><a href="mod_cache.html#cacheignorenolastmod">CacheIgnoreNoLastMod</a></li>
 <li><a href="mod_cache.html#cacheignorequerystring">CacheIgnoreQueryString</a></li>
+<li><a href="mod_cache.html#cacheignoreurlsessionidentifiers">CacheIgnoreURLSessionIdentifiers</a></li>
 <li><a href="mod_cache.html#cachelastmodifiedfactor">CacheLastModifiedFactor</a></li>
+<li><a href="mod_cache.html#cachelock">CacheLock</a></li>
+<li><a href="mod_cache.html#cachelockmaxage">CacheLockMaxAge</a></li>
+<li><a href="mod_cache.html#cachelockpath">CacheLockPath</a></li>
 <li><a href="mod_cache.html#cachemaxexpire">CacheMaxExpire</a></li>
 <li><a href="mod_disk_cache.html#cachemaxfilesize">CacheMaxFileSize</a></li>
 <li><a href="mod_disk_cache.html#cacheminfilesize">CacheMinFileSize</a></li>
@@ -196,7 +202,8 @@
 <li><a href="mod_status.html#extendedstatus">ExtendedStatus</a></li>
 <li><a href="mod_ext_filter.html#extfilterdefine">ExtFilterDefine</a></li>
 <li><a href="mod_ext_filter.html#extfilteroptions">ExtFilterOptions</a></li>
-<li><a href="core.html#fileetag" id="F" name="F">FileETag</a></li>
+<li><a href="mod_dir.html#fallbackresource" id="F" name="F">FallbackResource</a></li>
+<li><a href="core.html#fileetag">FileETag</a></li>
 <li><a href="core.html#files">&lt;Files&gt;</a></li>
 <li><a href="core.html#filesmatch">&lt;FilesMatch&gt;</a></li>
 <li><a href="mod_filter.html#filterchain">FilterChain</a></li>
@@ -207,7 +214,8 @@
 <li><a href="mod_negotiation.html#forcelanguagepriority">ForceLanguagePriority</a></li>
 <li><a href="core.html#forcetype">ForceType</a></li>
 <li><a href="mod_log_forensic.html#forensiclog">ForensicLog</a></li>
-<li><a href="mpm_common.html#gracefulshutdowntimeout" id="G" name="G">GracefulShutdownTimeout</a></li>
+<li><a href="core.html#gprofdir" id="G" name="G">GprofDir</a></li>
+<li><a href="mpm_common.html#gracefulshutdowntimeout">GracefulShutdownTimeout</a></li>
 <li><a href="mpm_common.html#group">Group</a></li>
 <li><a href="mod_headers.html#header" id="H" name="H">Header</a></li>
 <li><a href="mod_autoindex.html#headername">HeaderName</a></li>
@@ -294,6 +302,7 @@
 <li><a href="mod_authz_host.html#order">Order</a></li>
 <li><a href="mod_env.html#passenv" id="P" name="P">PassEnv</a></li>
 <li><a href="mpm_common.html#pidfile">PidFile</a></li>
+<li><a href="core.html#protocol">Protocol</a></li>
 <li><a href="mod_echo.html#protocolecho">ProtocolEcho</a></li>
 <li><a href="mod_proxy.html#proxy">&lt;Proxy&gt;</a></li>
 <li><a href="mod_proxy.html#proxybadheader">ProxyBadHeader</a></li>
@@ -315,6 +324,8 @@
 <li><a href="mod_proxy.html#proxyremote">ProxyRemote</a></li>
 <li><a href="mod_proxy.html#proxyremotematch">ProxyRemoteMatch</a></li>
 <li><a href="mod_proxy.html#proxyrequests">ProxyRequests</a></li>
+<li><a href="mod_proxy_scgi.html#proxyscgiinternalredirect">ProxySCGIInternalRedirect</a></li>
+<li><a href="mod_proxy_scgi.html#proxyscgisendfile">ProxySCGISendfile</a></li>
 <li><a href="mod_proxy.html#proxyset">ProxySet</a></li>
 <li><a href="mod_proxy.html#proxystatus">ProxyStatus</a></li>
 <li><a href="mod_proxy.html#proxytimeout">ProxyTimeout</a></li>
@@ -333,6 +344,7 @@
 <li><a href="mod_mime.html#removeoutputfilter">RemoveOutputFilter</a></li>
 <li><a href="mod_mime.html#removetype">RemoveType</a></li>
 <li><a href="mod_headers.html#requestheader">RequestHeader</a></li>
+<li><a href="mod_reqtimeout.html#requestreadtimeout">RequestReadTimeout</a></li>
 <li><a href="core.html#require">Require</a></li>
 <li><a href="mod_rewrite.html#rewritebase">RewriteBase</a></li>
 <li><a href="mod_rewrite.html#rewritecond">RewriteCond</a></li>
@@ -376,6 +388,8 @@
 <li><a href="mod_include.html#ssienableaccess">SSIEnableAccess</a></li>
 <li><a href="mod_include.html#ssiendtag">SSIEndTag</a></li>
 <li><a href="mod_include.html#ssierrormsg">SSIErrorMsg</a></li>
+<li><a href="mod_include.html#ssietag">SSIETag</a></li>
+<li><a href="mod_include.html#ssilastmodified">SSILastModified</a></li>
 <li><a href="mod_include.html#ssistarttag">SSIStartTag</a></li>
 <li><a href="mod_include.html#ssitimeformat">SSITimeFormat</a></li>
 <li><a href="mod_include.html#ssiundefinedecho">SSIUndefinedEcho</a></li>
@@ -391,7 +405,9 @@
 <li><a href="mod_ssl.html#sslciphersuite">SSLCipherSuite</a></li>
 <li><a href="mod_ssl.html#sslcryptodevice">SSLCryptoDevice</a></li>
 <li><a href="mod_ssl.html#sslengine">SSLEngine</a></li>
+<li><a href="mod_ssl.html#sslfips">SSLFIPS</a></li>
 <li><a href="mod_ssl.html#sslhonorcipherorder">SSLHonorCipherOrder</a></li>
+<li><a href="mod_ssl.html#sslinsecurerenegotiation">SSLInsecureRenegotiation</a></li>
 <li><a href="mod_ssl.html#sslmutex">SSLMutex</a></li>
 <li><a href="mod_ssl.html#ssloptions">SSLOptions</a></li>
 <li><a href="mod_ssl.html#sslpassphrasedialog">SSLPassPhraseDialog</a></li>
@@ -422,6 +438,7 @@
 <li><a href="mpm_common.html#startservers">StartServers</a></li>
 <li><a href="mpm_common.html#startthreads">StartThreads</a></li>
 <li><a href="mod_substitute.html#substitute">Substitute</a></li>
+<li><a href="core.html#suexec">Suexec</a></li>
 <li><a href="mod_suexec.html#suexecusergroup">SuexecUserGroup</a></li>
 <li><a href="mpm_common.html#threadlimit" id="T" name="T">ThreadLimit</a></li>
 <li><a href="mpm_common.html#threadsperchild">ThreadsPerChild</a></li>
@@ -450,8 +467,9 @@
 <a href="../ja/mod/directives.html" hreflang="ja" rel="alternate" title="Japanese">&nbsp;ja&nbsp;</a> |
 <a href="../ko/mod/directives.html" hreflang="ko" rel="alternate" title="Korean">&nbsp;ko&nbsp;</a> |
 <a href="../ru/mod/directives.html" hreflang="ru" rel="alternate" title="Russian">&nbsp;ru&nbsp;</a> |
-<a href="../tr/mod/directives.html" hreflang="tr" rel="alternate" title="Türkçe">&nbsp;tr&nbsp;</a></p>
+<a href="../tr/mod/directives.html" hreflang="tr" rel="alternate" title="Türkçe">&nbsp;tr&nbsp;</a> |
+<a href="../zh-cn/mod/directives.html" hreflang="zh-cn" rel="alternate" title="Simplified Chinese">&nbsp;zh-cn&nbsp;</a></p>
 </div><div id="footer">
-<p class="apache">Copyright 2009 The Apache Software Foundation.<br />Licencia bajo los términos de la <a href="http://www.apache.org/licenses/LICENSE-2.0">Apache License, Version 2.0</a>.</p>
+<p class="apache">Copyright 2011 The Apache Software Foundation.<br />Licencia bajo los términos de la <a href="http://www.apache.org/licenses/LICENSE-2.0">Apache License, Version 2.0</a>.</p>
 <p class="menu"><a href="../mod/">Módulos</a> | <a href="../mod/directives.html">Directivas</a> | <a href="../faq/">Preguntas Frecuentes</a> | <a href="../glossary.html">Glosario</a> | <a href="../sitemap.html">Mapa de este sitio web</a></p></div>
 </body></html>

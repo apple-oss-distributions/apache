@@ -257,7 +257,7 @@ static int ap_proxy_ajp_request(apr_pool_t *p, request_rec *r,
             ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
                          "proxy: ap_get_brigade failed");
             apr_brigade_destroy(input_brigade);
-            return HTTP_INTERNAL_SERVER_ERROR;
+            return HTTP_BAD_REQUEST;
         }
 
         /* have something */
@@ -450,15 +450,18 @@ static int ap_proxy_ajp_request(apr_pool_t *p, request_rec *r,
                         }
                     }
                     else {
+                        apr_status_t rv;
+
                         e = apr_bucket_transient_create(send_body_chunk_buff, size,
                                                     r->connection->bucket_alloc);
                         APR_BRIGADE_INSERT_TAIL(output_brigade, e);
 
                         if ((conn->worker->flush_packets == flush_on) ||
                             ((conn->worker->flush_packets == flush_auto) &&
-                            (apr_poll(conn_poll, 1, &conn_poll_fd,
-                                      conn->worker->flush_wait)
-                                        == APR_TIMEUP) ) ) {
+                            ((rv = apr_poll(conn_poll, 1, &conn_poll_fd,
+                                             conn->worker->flush_wait))
+                                             != APR_SUCCESS) &&
+                              APR_STATUS_IS_TIMEUP(rv))) {
                             e = apr_bucket_flush_create(r->connection->bucket_alloc);
                             APR_BRIGADE_INSERT_TAIL(output_brigade, e);
                         }
@@ -468,8 +471,10 @@ static int ap_proxy_ajp_request(apr_pool_t *p, request_rec *r,
                     }
                     if (ap_pass_brigade(r->output_filters,
                                         output_brigade) != APR_SUCCESS) {
-                        ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
-                                      "proxy: error processing body");
+                        ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
+                                      "proxy: error processing body.%s",
+                                      r->connection->aborted ?
+                                      " Client aborted connection." : "");
                         output_failed = 1;
                     }
                     data_sent = 1;
@@ -484,7 +489,7 @@ static int ap_proxy_ajp_request(apr_pool_t *p, request_rec *r,
                 APR_BRIGADE_INSERT_TAIL(output_brigade, e);
                 if (ap_pass_brigade(r->output_filters,
                                     output_brigade) != APR_SUCCESS) {
-                    ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
+                    ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
                                   "proxy: error processing end");
                     output_failed = 1;
                 }
@@ -507,6 +512,7 @@ static int ap_proxy_ajp_request(apr_pool_t *p, request_rec *r,
             conn->close++;
             output_failed = 0;
             result = CMD_AJP13_END_RESPONSE;
+            request_ended = 1;
         }
 
         /*
@@ -577,8 +583,17 @@ static int ap_proxy_ajp_request(apr_pool_t *p, request_rec *r,
          */
         if (data_sent) {
             ap_proxy_backend_broke(r, output_brigade);
-        } else
+        } else if (!send_body && (is_idempotent(r) == METHOD_IDEMPOTENT)) {
+            /*
+             * This is only non fatal when we have not sent (parts) of a possible
+             * request body so far (we do not store it and thus cannot sent it
+             * again) and the method is idempotent. In this case we can dare to
+             * retry it with a different worker if we are a balancer member.
+             */
             rv = HTTP_SERVICE_UNAVAILABLE;
+        } else {
+            rv = HTTP_INTERNAL_SERVER_ERROR;
+        }
     }
 
     /*

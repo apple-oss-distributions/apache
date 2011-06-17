@@ -10,7 +10,7 @@ SUBDIRS = \
 # paths to tools
 #
 
-include $(APR_WORK)\build\NWGNUhead.inc
+include $(APR_WORK)/build/NWGNUhead.inc
 
 #
 # build this level's files
@@ -20,13 +20,15 @@ include $(APR_WORK)\build\NWGNUhead.inc
 #
 TARGET_nlm = \
 	$(OBJDIR)/aprtest.nlm \
+	$(OBJDIR)/echod.nlm \
+	$(OBJDIR)/globalmutexchild.nlm \
 	$(OBJDIR)/mod_test.nlm \
 	$(OBJDIR)/proc_child.nlm \
 	$(OBJDIR)/readchild.nlm \
-	$(OBJDIR)/globalmutexchild.nlm \
 	$(OBJDIR)/sockchild.nlm \
-	$(OBJDIR)/tryread.nlm \
+	$(OBJDIR)/sockperf.nlm \
 	$(OBJDIR)/testatmc.nlm \
+	$(OBJDIR)/tryread.nlm \
 	$(EOLIST)
 
 #
@@ -39,10 +41,10 @@ nlms :: libs $(TARGET_nlm)
 
 #
 # Updated this target to create necessary directories and copy files to the 
-# correct place.  (See $(APR_WORK)\build\NWGNUhead.inc for examples)
+# correct place.  (See $(APR_WORK)/build/NWGNUhead.inc for examples)
 #
 install :: nlms FORCE
-	copy $(OBJDIR)\*.nlm $(INSTALLBASE)
+	$(call COPY,$(OBJDIR)/*.nlm,$(INSTALLBASE))
 
 #
 # Any specialized rules here
@@ -53,5 +55,5 @@ install :: nlms FORCE
 # in this makefile
 #
 
-include $(APR_WORK)\build\NWGNUtail.inc
+include $(APRBUILD)/NWGNUtail.inc
 

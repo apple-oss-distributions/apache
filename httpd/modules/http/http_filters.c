@@ -331,6 +331,10 @@ apr_status_t ap_http_filter(ap_filter_t *f, apr_bucket_brigade *b,
                 char *tmp;
                 int len;
 
+                /* if we send an interim response, we're no longer
+                 * in a state of expecting one.
+                 */
+                f->r->expecting_100 = 0;
                 tmp = apr_pstrcat(f->r->pool, AP_SERVER_PROTOCOL, " ",
                                   ap_get_status_line(100), CRLF CRLF, NULL);
                 len = strlen(tmp);
@@ -380,8 +384,13 @@ apr_status_t ap_http_filter(ap_filter_t *f, apr_bucket_brigade *b,
 
             /* Detect chunksize error (such as overflow) */
             if (rv != APR_SUCCESS || ctx->remaining < 0) {
+                ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, f->r, "Error reading first chunk %s ", 
+                              (ctx->remaining < 0) ? "(overflow)" : "");
                 ctx->remaining = 0; /* Reset it in case we have to
                                      * come back here later */
+                if (APR_STATUS_IS_TIMEUP(rv)) { 
+                    http_error = HTTP_REQUEST_TIME_OUT;
+                }
                 return bail_out_on_error(ctx, f, http_error);
             }
 
@@ -481,10 +490,14 @@ apr_status_t ap_http_filter(ap_filter_t *f, apr_bucket_brigade *b,
 
                 /* Detect chunksize error (such as overflow) */
                 if (rv != APR_SUCCESS || ctx->remaining < 0) {
+                    ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, f->r, "Error reading chunk %s ", 
+                                  (ctx->remaining < 0) ? "(overflow)" : "");
                     ctx->remaining = 0; /* Reset it in case we have to
                                          * come back here later */
-                    bail_out_on_error(ctx, f, http_error);
-                    return rv;
+                    if (APR_STATUS_IS_TIMEUP(rv)) { 
+                        http_error = HTTP_REQUEST_TIME_OUT;
+                    }
+                    return bail_out_on_error(ctx, f, http_error);
                 }
 
                 if (!ctx->remaining) {
@@ -524,6 +537,11 @@ apr_status_t ap_http_filter(ap_filter_t *f, apr_bucket_brigade *b,
 
     if (ctx->state != BODY_NONE) {
         ctx->remaining -= totalread;
+        if (ctx->remaining > 0) {
+            e = APR_BRIGADE_LAST(b);
+            if (APR_BUCKET_IS_EOS(e))
+                return APR_EOF;
+        }
     }
 
     /* If we have no more bytes remaining on a C-L request,
@@ -1115,7 +1133,7 @@ AP_CORE_DECLARE_NONSTD(apr_status_t) ap_http_header_filter(ap_filter_t *f,
             ctx = f->ctx = apr_pcalloc(r->pool, sizeof(header_filter_ctx));
         }
         else if (ctx->headers_sent) {
-            apr_brigade_destroy(b);
+            apr_brigade_cleanup(b);
             return OK;
         }
     }
@@ -1286,7 +1304,7 @@ AP_CORE_DECLARE_NONSTD(apr_status_t) ap_http_header_filter(ap_filter_t *f,
     ap_pass_brigade(f->next, b2);
 
     if (r->header_only) {
-        apr_brigade_destroy(b);
+        apr_brigade_cleanup(b);
         ctx->headers_sent = 1;
         return OK;
     }

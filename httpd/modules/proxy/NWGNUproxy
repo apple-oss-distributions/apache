@@ -8,7 +8,7 @@
 #
 
 ifndef EnvironmentDefined
-include $(AP_WORK)\build\NWGNUhead.inc
+include $(AP_WORK)/build/NWGNUhead.inc
 endif
 
 #
@@ -16,15 +16,13 @@ endif
 # INCDIRS
 #
 XINCDIRS	+= \
-			$(AP_WORK)/include \
-			$(NWOS) \
-			$(AP_WORK)/modules/http \
-			$(AP_WORK)/modules/arch/netware \
-			$(AP_WORK)/modules/ssl \
-			$(AP_WORK)/modules/generators \
 			$(APR)/include \
 			$(APRUTIL)/include \
-			$(APR) \
+			$(AP_WORK)/include \
+			$(NWOS) \
+			$(HTTPD) \
+			$(STDMOD)/generators \
+			$(STDMOD)/ssl \
 			$(EOLIST)
 
 #
@@ -112,7 +110,7 @@ NLM_THREAD_NAME	= Proxy Module
 
 #
 # If this is specified, it will override VERSION value in 
-# $(AP_WORK)\build\NWGNUenvironment.inc
+# $(AP_WORK)/build/NWGNUenvironment.inc
 #
 NLM_VERSION	=
 
@@ -125,12 +123,12 @@ NLM_STACK_SIZE	= 8192
 #
 # If this is specified it will be used by the link '-entry' directive
 #
-NLM_ENTRY_SYM	= _LibCPrelude
+NLM_ENTRY_SYM	=
 
 #
 # If this is specified it will be used by the link '-exit' directive
 #
-NLM_EXIT_SYM	= _LibCPostlude
+NLM_EXIT_SYM	=
 
 #
 # If this is specified it will be used by the link '-check' directive
@@ -140,7 +138,7 @@ NLM_CHECK_SYM	=
 #
 # If these are specified it will be used by the link '-flags' directive
 #
-NLM_FLAGS	= AUTOUNLOAD, PSEUDOPREEMPTION
+NLM_FLAGS	=
 
 #
 # If this is specified it will be linked in with the XDCData option in the def 
@@ -177,7 +175,7 @@ FILES_nlm_objs = \
 # These will be added as a library command in the link.opt file.
 #
 FILES_nlm_libs = \
-	libcpre.o \
+	$(PRELUDE) \
 	$(EOLIST)
 
 #
@@ -208,8 +206,8 @@ FILE_nlm_copyright =
 # Any additional imports go here
 #
 FILES_nlm_Ximports = \
-	@$(APR)/aprlib.imp \
-	@$(NWOS)/httpd.imp \
+	@aprlib.imp \
+	@httpd.imp \
 	@libc.imp \
 	$(EOLIST)
  
@@ -223,16 +221,7 @@ endif
 # Any symbols exported to here
 #
 FILES_nlm_exports = \
-	proxy_module \
-	proxy_hook_scheme_handler \
-	proxy_hook_canon_handler \
-	proxy_hook_pre_request \
-	proxy_hook_post_request \
-	ap_proxy_ssl_enable \
-	ap_proxy_ssl_disable \
-	ap_proxy_conn_is_https \
-	ap_proxy_ssl_val \
-	proxy_run_fixups \
+	@$(OBJDIR)/mod_proxy.imp \
 	$(EOLIST)
 
 #   
@@ -248,11 +237,11 @@ FILES_lib_objs = \
 
 libs :: $(OBJDIR) $(TARGET_lib)
 
-nlms :: libs $(TARGET_nlm)
+nlms :: libs $(OBJDIR)/mod_proxy.imp $(TARGET_nlm)
 
 #
 # Updated this target to create necessary directories and copy files to the 
-# correct place.  (See $(AP_WORK)\build\NWGNUhead.inc for examples)
+# correct place.  (See $(AP_WORK)/build/NWGNUhead.inc for examples)
 #
 install :: nlms FORCE
 
@@ -262,11 +251,25 @@ install :: nlms FORCE
 
 vpath %.c ../arch/netware
 
+$(OBJDIR)/mod_proxy.imp:
+	@echo Creating $@
+	@echo # Exports of mod_proxy > $@
+	@echo   proxy_module, >> $@
+	@echo   proxy_hook_canon_handler, >> $@
+	@echo   proxy_hook_post_request, >> $@
+	@echo   proxy_hook_pre_request, >> $@
+	@echo   proxy_hook_scheme_handler, >> $@
+	@echo   proxy_run_fixups, >> $@
+	@echo   ap_proxy_conn_is_https, >> $@
+	@echo   ap_proxy_ssl_enable, >> $@
+	@echo   ap_proxy_ssl_disable, >> $@
+	@echo   ap_proxy_ssl_val >> $@
+
 #
 # Include the 'tail' makefile that has targets that depend on variables defined
 # in this makefile
 #
 
-include $(AP_WORK)\build\NWGNUtail.inc
+include $(APBUILD)/NWGNUtail.inc
 
 

@@ -54,7 +54,9 @@ to provide the cryptography engine.</p>
 <li><img alt="" src="../images/down.gif" /> <a href="#sslciphersuite">SSLCipherSuite</a></li>
 <li><img alt="" src="../images/down.gif" /> <a href="#sslcryptodevice">SSLCryptoDevice</a></li>
 <li><img alt="" src="../images/down.gif" /> <a href="#sslengine">SSLEngine</a></li>
+<li><img alt="" src="../images/down.gif" /> <a href="#sslfips">SSLFIPS</a></li>
 <li><img alt="" src="../images/down.gif" /> <a href="#sslhonorcipherorder">SSLHonorCipherOrder</a></li>
+<li><img alt="" src="../images/down.gif" /> <a href="#sslinsecurerenegotiation">SSLInsecureRenegotiation</a></li>
 <li><img alt="" src="../images/down.gif" /> <a href="#sslmutex">SSLMutex</a></li>
 <li><img alt="" src="../images/down.gif" /> <a href="#ssloptions">SSLOptions</a></li>
 <li><img alt="" src="../images/down.gif" /> <a href="#sslpassphrasedialog">SSLPassPhraseDialog</a></li>
@@ -92,9 +94,11 @@ to provide the cryptography engine.</p>
 <div class="section">
 <h2><a name="envvars" id="envvars">Environment Variables</a></h2>
 
-<p>This module provides a lot of SSL information as additional environment
-variables to the SSI and CGI namespace. The generated variables are listed in
-the table below. For backward compatibility the information can
+<p>This module can be configured to provide several items of SSL information 
+as additional environment variables to the SSI and CGI namespace. This
+information is not provided by default for performance reasons. (See
+<code class="directive">SSLOptions</code> StdEnvVars, below.) The generated variables 
+are listed in the table below. For backward compatibility the information can
 be made available under different names, too. Look in the <a href="../ssl/ssl_compat.html">Compatibility</a> chapter for details on the
 compatibility variables.</p>
 
@@ -620,8 +624,8 @@ SSLCryptoDevice ubsec
 </table>
 <p>
 This directive toggles the usage of the SSL/TLS Protocol Engine. This
-is usually used inside a <code class="directive"><a href="../mod/core.html#virtualhost">&lt;VirtualHost&gt;</a></code> section to enable SSL/TLS for a
-particular virtual host. By default the SSL/TLS Protocol Engine is
+should be used inside a <code class="directive"><a href="../mod/core.html#virtualhost">&lt;VirtualHost&gt;</a></code> section to enable SSL/TLS for a
+that virtual host. By default the SSL/TLS Protocol Engine is
 disabled for both the main server and all configured virtual hosts.</p>
 <div class="example"><h3>Example</h3><p><code>
 &lt;VirtualHost _default_:443&gt;<br />
@@ -636,10 +640,38 @@ Within HTTP/1.1. At this time no web browsers support RFC 2817.</p>
 
 </div>
 <div class="top"><a href="#page-header"><img alt="top" src="../images/up.gif" /></a></div>
+<div class="directive-section"><h2><a name="SSLFIPS" id="SSLFIPS">SSLFIPS</a> <a name="sslfips" id="sslfips">Directive</a></h2>
+<table class="directive">
+<tr><th><a href="directive-dict.html#Description">Description:</a></th><td>SSL FIPS mode Switch</td></tr>
+<tr><th><a href="directive-dict.html#Syntax">Syntax:</a></th><td><code>SSLFIPS on|off</code></td></tr>
+<tr><th><a href="directive-dict.html#Default">Default:</a></th><td><code>SSLFIPS off</code></td></tr>
+<tr><th><a href="directive-dict.html#Context">Context:</a></th><td>server config</td></tr>
+<tr><th><a href="directive-dict.html#Status">Status:</a></th><td>Extension</td></tr>
+<tr><th><a href="directive-dict.html#Module">Module:</a></th><td>mod_ssl</td></tr>
+</table>
+<p>
+This directive toggles the usage of the SSL library FIPS_mode flag.
+It must be set in the global server context and cannot be configured
+with conflicting settings (SSLFIPS on followed by SSLFIPS off or 
+similar).  The mode applies to all SSL library operations.
+</p>
+<p>
+If httpd was compiled against an SSL library which did not support
+the FIPS_mode flag, <code>SSLFIPS on</code> will fail.  Refer to the
+FIPS 140-2 Security Policy document of the SSL provider library for
+specific requirements to use mod_ssl in a FIPS 140-2 approved mode
+of operation; note that mod_ssl itself is not validated, but may be
+described as using FIPS 140-2 validated cryptographic module, when
+all components are assembled and operated under the guidelines imposed
+by the applicable Security Policy.
+</p>
+
+</div>
+<div class="top"><a href="#page-header"><img alt="top" src="../images/up.gif" /></a></div>
 <div class="directive-section"><h2><a name="SSLHonorCipherOrder" id="SSLHonorCipherOrder">SSLHonorCipherOrder</a> <a name="sslhonorcipherorder" id="sslhonorcipherorder">Directive</a></h2>
 <table class="directive">
 <tr><th><a href="directive-dict.html#Description">Description:</a></th><td>Option to prefer the server's cipher preference order</td></tr>
-<tr><th><a href="directive-dict.html#Syntax">Syntax:</a></th><td><code>SSLHonorCiperOrder <em>flag</em></code></td></tr>
+<tr><th><a href="directive-dict.html#Syntax">Syntax:</a></th><td><code>SSLHonorCipherOrder <em>flag</em></code></td></tr>
 <tr><th><a href="directive-dict.html#Context">Context:</a></th><td>server config, virtual host</td></tr>
 <tr><th><a href="directive-dict.html#Status">Status:</a></th><td>Extension</td></tr>
 <tr><th><a href="directive-dict.html#Module">Module:</a></th><td>mod_ssl</td></tr>
@@ -651,6 +683,48 @@ server's preference will be used instead.</p>
 <div class="example"><h3>Example</h3><p><code>
 SSLHonorCipherOrder on
 </code></p></div>
+
+</div>
+<div class="top"><a href="#page-header"><img alt="top" src="../images/up.gif" /></a></div>
+<div class="directive-section"><h2><a name="SSLInsecureRenegotiation" id="SSLInsecureRenegotiation">SSLInsecureRenegotiation</a> <a name="sslinsecurerenegotiation" id="sslinsecurerenegotiation">Directive</a></h2>
+<table class="directive">
+<tr><th><a href="directive-dict.html#Description">Description:</a></th><td>Option to enable support for insecure renegotiation</td></tr>
+<tr><th><a href="directive-dict.html#Syntax">Syntax:</a></th><td><code>SSLInsecureRenegotiation <em>flag</em></code></td></tr>
+<tr><th><a href="directive-dict.html#Default">Default:</a></th><td><code>SSLInsecureRenegotiation off</code></td></tr>
+<tr><th><a href="directive-dict.html#Context">Context:</a></th><td>server config, virtual host</td></tr>
+<tr><th><a href="directive-dict.html#Status">Status:</a></th><td>Extension</td></tr>
+<tr><th><a href="directive-dict.html#Module">Module:</a></th><td>mod_ssl</td></tr>
+<tr><th><a href="directive-dict.html#Compatibility">Compatibility:</a></th><td>Available in httpd 2.2.15 and later, if using OpenSSL 0.9.8m or later</td></tr>
+</table>
+<p>As originally specified, all versions of the SSL and TLS protocols
+(up to and including TLS/1.2) were vulnerable to a Man-in-the-Middle
+attack
+(<a href="http://cve.mitre.org/cgi-bin/cvename.cgi?name=CAN-2009-3555">CVE-2009-3555</a>)
+during a renegotiation.  This vulnerability allowed an attacker to
+"prefix" a chosen plaintext to the HTTP request as seen by the web
+server.  A protocol extension was developed which fixed this
+vulnerability if supported by both client and server.</p>
+
+<p>If <code class="module"><a href="../mod/mod_ssl.html">mod_ssl</a></code> is linked against OpenSSL version 0.9.8m
+or later, by default renegotiation is only supported with
+clients supporting the new protocol extension.  If this directive is
+enabled, renegotiation will be allowed with old (unpatched) clients,
+albeit insecurely.</p>
+
+<div class="warning"><h3>Security warning</h3>
+<p>If this directive is enabled, SSL connections will be vulnerable to
+the Man-in-the-Middle prefix attack as described
+in <a href="http://cve.mitre.org/cgi-bin/cvename.cgi?name=CAN-2009-3555">CVE-2009-3555</a>.</p>
+</div>
+
+<div class="example"><h3>Example</h3><p><code>
+SSLInsecureRenegotiation on
+</code></p></div>
+
+<p>The <code>SSL_SECURE_RENEG</code> environment variable can be used
+from an SSI or CGI script to determine whether secure renegotiation is
+supported for a given SSL connection.</p>
+
 
 </div>
 <div class="top"><a href="#page-header"><img alt="top" src="../images/up.gif" /></a></div>
@@ -766,13 +840,6 @@ The available <em>option</em>s are:</p>
     rather expensive operation. So one usually enables this option for
     CGI and SSI requests only.</p>
 </li>
-<li><code>CompatEnvVars</code>
-    <p>
-    When this option is enabled, additional CGI/SSI environment variables are
-    created for backward compatibility to other Apache SSL solutions. Look in
-    the <a href="../ssl/ssl_compat.html">Compatibility</a> chapter for details
-    on the particular variables generated.</p>
-</li>
 <li><code>ExportCertData</code>
     <p>
     When this option is enabled, additional CGI/SSI environment variables are
@@ -829,7 +896,7 @@ The available <em>option</em>s are:</p>
 <div class="example"><h3>Example</h3><p><code>
 SSLOptions +FakeBasicAuth -StrictRequire<br />
 &lt;Files ~ "\.(cgi|shtml)$"&gt;<br />
-    SSLOptions +StdEnvVars +CompatEnvVars -ExportCertData<br />
+    SSLOptions +StdEnvVars -ExportCertData<br />
 &lt;Files&gt;
 </code></p></div>
 
@@ -1222,21 +1289,14 @@ for additional information.
 <tr><th><a href="directive-dict.html#Description">Description:</a></th><td>Type of remote server Certificate verification</td></tr>
 <tr><th><a href="directive-dict.html#Syntax">Syntax:</a></th><td><code>SSLProxyVerify <em>level</em></code></td></tr>
 <tr><th><a href="directive-dict.html#Default">Default:</a></th><td><code>SSLProxyVerify none</code></td></tr>
-<tr><th><a href="directive-dict.html#Context">Context:</a></th><td>server config, virtual host, directory, .htaccess</td></tr>
-<tr><th><a href="directive-dict.html#Override">Override:</a></th><td>AuthConfig</td></tr>
+<tr><th><a href="directive-dict.html#Context">Context:</a></th><td>server config, virtual host</td></tr>
 <tr><th><a href="directive-dict.html#Status">Status:</a></th><td>Extension</td></tr>
 <tr><th><a href="directive-dict.html#Module">Module:</a></th><td>mod_ssl</td></tr>
 </table>
 
 <p>When a proxy is configured to forward requests to a remote SSL
 server, this directive can be used to configure certificate
-verification of the remote server.  Notice that this directive can be
-used both in per-server and per-directory context. In per-server
-context it applies to the remote server authentication process used in
-the standard SSL handshake when a connection is established by the
-proxy. In per-directory context it forces a SSL renegotation with the
-reconfigured remote server verification level after the HTTP request
-was read but before the HTTP response is sent.</p>
+verification of the remote server. </p>
 
 <div class="warning">
 <p>Note that even when certificate verification is enabled,
@@ -1247,7 +1307,12 @@ the proxy does not guarantee that the SSL connection to the backend
 server is "secure" beyond the fact that the certificate is signed by
 one of the CAs configured using the
 <code class="directive">SSLProxyCACertificatePath</code> and/or
-<code class="directive">SSLProxyCACertificateFile</code> directives.</p>
+<code class="directive">SSLProxyCACertificateFile</code> directives.
+In order to get this check done please have a look at
+<code class="directive">SSLProxyCheckPeerCN</code> and
+<code class="directive">SSLProxyCheckPeerExpire</code> directives which are off by
+default.
+</p>
 </div>
 
 <p>
@@ -1280,19 +1345,14 @@ SSLProxyVerify require
 Certificate verification</td></tr>
 <tr><th><a href="directive-dict.html#Syntax">Syntax:</a></th><td><code>SSLProxyVerifyDepth <em>number</em></code></td></tr>
 <tr><th><a href="directive-dict.html#Default">Default:</a></th><td><code>SSLProxyVerifyDepth 1</code></td></tr>
-<tr><th><a href="directive-dict.html#Context">Context:</a></th><td>server config, virtual host, directory, .htaccess</td></tr>
+<tr><th><a href="directive-dict.html#Context">Context:</a></th><td>server config, virtual host</td></tr>
 <tr><th><a href="directive-dict.html#Override">Override:</a></th><td>AuthConfig</td></tr>
 <tr><th><a href="directive-dict.html#Status">Status:</a></th><td>Extension</td></tr>
 <tr><th><a href="directive-dict.html#Module">Module:</a></th><td>mod_ssl</td></tr>
 </table>
 <p>
 This directive sets how deeply mod_ssl should verify before deciding that the
-remote server does not have a valid certificate. Notice that this directive can be
-used both in per-server and per-directory context. In per-server context it
-applies to the client authentication process used in the standard SSL
-handshake when a connection is established. In per-directory context it forces
-a SSL renegotation with the reconfigured remote server verification depth after the
-HTTP request was read but before the HTTP response is sent.</p>
+remote server does not have a valid certificate. </p>
 <p>
 The depth actually is the maximum number of intermediate certificate issuers,
 i.e. the number of CA certificates which are max allowed to be followed while
@@ -1700,7 +1760,7 @@ host.
 <tr><th><a href="directive-dict.html#Context">Context:</a></th><td>server config, virtual host</td></tr>
 <tr><th><a href="directive-dict.html#Status">Status:</a></th><td>Extension</td></tr>
 <tr><th><a href="directive-dict.html#Module">Module:</a></th><td>mod_ssl</td></tr>
-<tr><th><a href="directive-dict.html#Compatibility">Compatibility:</a></th><td>Available after Apache 2.2.11</td></tr>
+<tr><th><a href="directive-dict.html#Compatibility">Compatibility:</a></th><td>Available in Apache 2.2.12 and later</td></tr>
 </table>
 <p>
 This directive sets whether a non SNI client is allowed to access a name based
@@ -1740,7 +1800,7 @@ string. In particular, this may cause the environment variable
 any of the <a href="#envvars">SSL environment variables</a>.</p>
 
 <p>Note that this directive has no effect if the
-<code>FakeBasic</code> option is used (see <a href="#ssloptions">SSLOptions</a>).</p>
+<code>FakeBasicAuth</code> option is used (see <a href="#ssloptions">SSLOptions</a>).</p>
 
 <div class="example"><h3>Example</h3><p><code>
 SSLUserName SSL_CLIENT_S_DN_CN
@@ -1826,6 +1886,6 @@ SSLVerifyDepth 10
 <div class="bottomlang">
 <p><span>Available Languages: </span><a href="../en/mod/mod_ssl.html" title="English">&nbsp;en&nbsp;</a></p>
 </div><div id="footer">
-<p class="apache">Copyright 2009 The Apache Software Foundation.<br />Licensed under the <a href="http://www.apache.org/licenses/LICENSE-2.0">Apache License, Version 2.0</a>.</p>
+<p class="apache">Copyright 2011 The Apache Software Foundation.<br />Licensed under the <a href="http://www.apache.org/licenses/LICENSE-2.0">Apache License, Version 2.0</a>.</p>
 <p class="menu"><a href="../mod/">Modules</a> | <a href="../mod/directives.html">Directives</a> | <a href="../faq/">FAQ</a> | <a href="../glossary.html">Glossary</a> | <a href="../sitemap.html">Sitemap</a></p></div>
 </body></html>

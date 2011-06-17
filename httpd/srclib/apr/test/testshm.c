@@ -31,6 +31,7 @@
 
 #if APR_HAS_SHARED_MEMORY
 
+#if APR_HAS_FORK
 static int msgwait(int sleep_sec, int first_box, int last_box)
 {
     int i;
@@ -58,6 +59,7 @@ static void msgput(int boxnum, char *msg)
     apr_cpystrn(boxes[boxnum].msg, msg, strlen(msg) + 1);
     boxes[boxnum].msgavail = 1;
 }
+#endif /* APR_HAS_FORK */
 
 static void test_anon_create(abts_case *tc, void *data)
 {
@@ -185,6 +187,10 @@ static void test_named(abts_case *tc, void *data)
     rv = apr_procattr_create(&attr1, p);
     ABTS_PTR_NOTNULL(tc, attr1);
     APR_ASSERT_SUCCESS(tc, "Couldn't create attr1", rv);
+
+    rv = apr_procattr_cmdtype_set(attr1, APR_PROGRAM_ENV);
+    APR_ASSERT_SUCCESS(tc, "Couldn't set copy environment", rv);
+
     args[0] = apr_pstrdup(p, "testshmproducer" EXTENSION);
     args[1] = NULL;
     rv = apr_proc_create(&pidproducer, TESTBINPATH "testshmproducer" EXTENSION, args,
@@ -194,6 +200,10 @@ static void test_named(abts_case *tc, void *data)
     rv = apr_procattr_create(&attr2, p);
     ABTS_PTR_NOTNULL(tc, attr2);
     APR_ASSERT_SUCCESS(tc, "Couldn't create attr2", rv);
+
+    rv = apr_procattr_cmdtype_set(attr2, APR_PROGRAM_ENV);
+    APR_ASSERT_SUCCESS(tc, "Couldn't set copy environment", rv);
+
     args[0] = apr_pstrdup(p, "testshmconsumer" EXTENSION);
     rv = apr_proc_create(&pidconsumer, TESTBINPATH "testshmconsumer" EXTENSION, args, 
                          NULL, attr2, p);

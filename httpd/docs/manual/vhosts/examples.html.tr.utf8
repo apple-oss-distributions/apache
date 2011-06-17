@@ -26,10 +26,10 @@
 </div>
 
 
-    <p>Bu belgede sanal konaklarla ile ilgili olarak karşılaşılması olası tüm
-      senaryolara yer verilmeye çalışılmıştır. Buradaki senaryolar, tek bir
-      sunucu üzerinde  <a href="name-based.html">isme dayalı</a> veya <a href="ip-based.html">IP’ye dayalı</a> sanal konaklar aracılığıyla çok
-      sayıda sitenin sunumu ile ilgilidir.
+    <p>Bu belgede <a href="index.html">sanal konaklar</a> ile ilgili
+      karşılaşılması olası tüm senaryolara yer verilmeye çalışılmıştır.
+      Buradaki senaryolar, tek bir sunucu üzerinde <a href="name-based.html">isme dayalı</a> veya <a href="ip-based.html">IP’ye dayalı</a> sanal
+      konaklar aracılığıyla çok sayıda sitenin sunumu ile ilgilidir.
     </p>
 
 </div>
@@ -640,6 +640,6 @@
 <a href="../ko/vhosts/examples.html" hreflang="ko" rel="alternate" title="Korean">&nbsp;ko&nbsp;</a> |
 <a href="../tr/vhosts/examples.html" title="Türkçe">&nbsp;tr&nbsp;</a></p>
 </div><div id="footer">
-<p class="apache">Copyright 2009 The Apache Software Foundation.<br /><a href="http://www.apache.org/licenses/LICENSE-2.0">Apache License, Version 2.0</a> altında lisanslıdır.</p>
+<p class="apache">Copyright 2011 The Apache Software Foundation.<br /><a href="http://www.apache.org/licenses/LICENSE-2.0">Apache License, Version 2.0</a> altında lisanslıdır.</p>
 <p class="menu"><a href="../mod/">Modüller</a> | <a href="../mod/directives.html">Yönergeler</a> | <a href="../faq/">SSS</a> | <a href="../glossary.html">Terimler</a> | <a href="../sitemap.html">Site Haritası</a></p></div>
 </body></html>

@@ -1820,7 +1820,7 @@ static void *util_ldap_create_config(apr_pool_t *p, server_rec *s)
     apr_thread_mutex_create(&st->mutex, APR_THREAD_MUTEX_DEFAULT, st->pool);
 #endif
 
-    st->cache_bytes = 100000;
+    st->cache_bytes = 500000;
     st->search_cache_ttl = 600000000;
     st->search_cache_size = 1024;
     st->compare_cache_ttl = 600000000;
@@ -1837,6 +1837,9 @@ static void *util_ldap_create_config(apr_pool_t *p, server_rec *s)
     return st;
 }
 
+/* cache-related settings are not merged here, but in the post_config hook,
+ * since the cache has not yet sprung to life
+ */
 static void *util_ldap_merge_config(apr_pool_t *p, void *basev,
                                     void *overridesv)
 {
@@ -1983,6 +1986,7 @@ static int util_ldap_post_config(apr_pool_t *p, apr_pool_t *plog,
             st_vhost->cache_shm = st->cache_shm;
             st_vhost->cache_rmm = st->cache_rmm;
             st_vhost->cache_file = st->cache_file;
+            st_vhost->util_ldap_cache = st->util_ldap_cache;
             ap_log_error(APLOG_MARK, APLOG_DEBUG, result, s,
                          "LDAP merging Shared Cache conf: shm=0x%pp rmm=0x%pp "
                          "for VHOST: %s", st->cache_shm, st->cache_rmm,
@@ -2075,9 +2079,9 @@ static const command_rec util_ldap_cmds[] = {
     AP_INIT_TAKE1("LDAPCacheEntries", util_ldap_set_cache_entries,
                   NULL, RSRC_CONF,
                   "Set the maximum number of entries that are possible in the "
-                  "LDAP search cache. Use 0 for no limit. "
-                  "-1 disables the cache. (default: 1024)"),
-
+                  "LDAP search cache. Use 0 or -1 to disable the search cache " 
+                  "(default: 1024)"),
+                  
     AP_INIT_TAKE1("LDAPCacheTTL", util_ldap_set_cache_ttl,
                   NULL, RSRC_CONF,
                   "Set the maximum time (in seconds) that an item can be "
@@ -2087,8 +2091,8 @@ static const command_rec util_ldap_cmds[] = {
     AP_INIT_TAKE1("LDAPOpCacheEntries", util_ldap_set_opcache_entries,
                   NULL, RSRC_CONF,
                   "Set the maximum number of entries that are possible "
-                  "in the LDAP compare cache. Use 0 for no limit. "
-                  "Use -1 to disable the cache. (default: 1024)"),
+                  "in the LDAP compare cache. Use 0 or -1 to disable the compare cache " 
+                  "(default: 1024)"),
 
     AP_INIT_TAKE1("LDAPOpCacheTTL", util_ldap_set_opcache_ttl,
                   NULL, RSRC_CONF,

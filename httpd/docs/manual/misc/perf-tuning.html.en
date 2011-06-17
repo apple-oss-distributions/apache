@@ -385,7 +385,7 @@
     connection. The default <code class="directive"><a href="../mod/core.html#keepalivetimeout">KeepAliveTimeout</a></code> of <code>5</code>
     seconds attempts to minimize this effect. The tradeoff here is
     between network bandwidth and server resources. In no event
-    should you raise this above about <code>60</code> seconds, as <a href="http://www.research.digital.com/wrl/techreports/abstracts/95.4.html">
+    should you raise this above about <code>60</code> seconds, as <a href="http://www.hpl.hp.com/techreports/Compaq-DEC/WRL-95-4.html">
     most of the benefits are lost</a>.</p>
 
     
@@ -1052,6 +1052,6 @@
 <a href="../ko/misc/perf-tuning.html" hreflang="ko" rel="alternate" title="Korean">&nbsp;ko&nbsp;</a> |
 <a href="../tr/misc/perf-tuning.html" hreflang="tr" rel="alternate" title="Türkçe">&nbsp;tr&nbsp;</a></p>
 </div><div id="footer">
-<p class="apache">Copyright 2009 The Apache Software Foundation.<br />Licensed under the <a href="http://www.apache.org/licenses/LICENSE-2.0">Apache License, Version 2.0</a>.</p>
+<p class="apache">Copyright 2011 The Apache Software Foundation.<br />Licensed under the <a href="http://www.apache.org/licenses/LICENSE-2.0">Apache License, Version 2.0</a>.</p>
 <p class="menu"><a href="../mod/">Modules</a> | <a href="../mod/directives.html">Directives</a> | <a href="../faq/">FAQ</a> | <a href="../glossary.html">Glossary</a> | <a href="../sitemap.html">Sitemap</a></p></div>
 </body></html>

@@ -697,12 +697,15 @@ static void purge(char *path, apr_pool_t *pool, apr_off_t max)
  * usage info
  */
 #define NL APR_EOL_STR
-static void usage(void)
+static void usage(const char *error)
 {
-    apr_file_printf(errfile,
+    if (error) {
+    	apr_file_printf(errfile, "%s error: %s\n", shortname, error);
+    }
+	apr_file_printf(errfile,
     "%s -- program for cleaning the disk cache."                             NL
-    "Usage: %s [-Dvtrn] -pPATH -lLIMIT"                                      NL
-    "       %s [-nti] -dINTERVAL -pPATH -lLIMIT"                             NL
+    "Usage: %s [-Dvtrn] -pPATH -lLIMIT [-PPIDFILE]"                          NL
+    "       %s [-nti] -dINTERVAL -pPATH -lLIMIT [-PPIDFILE]"                 NL
                                                                              NL
     "Options:"                                                               NL
     "  -d   Daemonize and repeat cache cleaning every INTERVAL minutes."     NL
@@ -728,6 +731,8 @@ static void usage(void)
                                                                              NL
     "  -p   Specify PATH as the root directory of the disk cache."           NL
                                                                              NL
+    "  -P   Specify PIDFILE as the file to write the pid to."                NL
+                                                                             NL
     "  -l   Specify LIMIT as the total disk cache size limit. Attach 'K'"    NL
     "       or 'M' to the number for specifying KBytes or MBytes."           NL
                                                                              NL
@@ -743,6 +748,29 @@ static void usage(void)
 }
 #undef NL
 
+static void log_pid(apr_pool_t *pool, const char *pidfilename, apr_file_t **pidfile)
+{
+    apr_status_t status;
+    char errmsg[120];
+    pid_t mypid = getpid();
+
+    if (APR_SUCCESS == (status = apr_file_open(pidfile, pidfilename,
+                APR_FOPEN_WRITE | APR_FOPEN_CREATE | APR_FOPEN_TRUNCATE |
+                APR_FOPEN_DELONCLOSE, APR_FPROT_UREAD | APR_FPROT_UWRITE |
+                APR_FPROT_GREAD | APR_FPROT_WREAD, pool))) {
+        apr_file_printf(*pidfile, "%" APR_PID_T_FMT APR_EOL_STR, mypid);
+    }
+    else {
+        if (errfile) {
+            apr_file_printf(errfile,
+                            "Could not write the pid file '%s': %s" APR_EOL_STR,
+                            pidfilename, 
+                            apr_strerror(status, errmsg, sizeof errmsg));
+        }
+        exit(1);
+    }
+}
+
 /*
  * main
  */
@@ -754,10 +782,12 @@ int main(int argc, const char * const argv[])
     apr_pool_t *pool, *instance;
     apr_getopt_t *o;
     apr_finfo_t info;
+    apr_file_t *pidfile;
     int retries, isdaemon, limit_found, intelligent, dowork;
     char opt;
     const char *arg;
-    char *proxypath, *path;
+    char *proxypath, *path, *pidfilename;
+    char errmsg[1024];
 
     interrupted = 0;
     repeat = 0;
@@ -772,6 +802,7 @@ int main(int argc, const char * const argv[])
     intelligent = 0;
     previous = 0; /* avoid compiler warning */
     proxypath = NULL;
+    pidfilename = NULL;
 
     if (apr_app_initialize(&argc, &argv, NULL) != APR_SUCCESS) {
         return 1;
@@ -793,53 +824,53 @@ int main(int argc, const char * const argv[])
     apr_getopt_init(&o, pool, argc, argv);
 
     while (1) {
-        status = apr_getopt(o, "iDnvrtd:l:L:p:", &opt, &arg);
+        status = apr_getopt(o, "iDnvrtd:l:L:p:P:", &opt, &arg);
         if (status == APR_EOF) {
             break;
         }
         else if (status != APR_SUCCESS) {
-            usage();
+            usage(NULL);
         }
         else {
             switch (opt) {
             case 'i':
                 if (intelligent) {
-                    usage();
+                    usage(apr_psprintf(pool, "The option '%c' cannot be specified more than once", (int)opt));
                 }
                 intelligent = 1;
                 break;
 
             case 'D':
                 if (dryrun) {
-                    usage();
+                    usage(apr_psprintf(pool, "The option '%c' cannot be specified more than once", (int)opt));
                 }
                 dryrun = 1;
                 break;
 
             case 'n':
                 if (benice) {
-                    usage();
+                    usage(apr_psprintf(pool, "The option '%c' cannot be specified more than once", (int)opt));
                 }
                 benice = 1;
                 break;
 
             case 't':
                 if (deldirs) {
-                    usage();
+                    usage(apr_psprintf(pool, "The option '%c' cannot be specified more than once", (int)opt));
                 }
                 deldirs = 1;
                 break;
 
             case 'v':
                 if (verbose) {
-                    usage();
+                    usage(apr_psprintf(pool, "The option '%c' cannot be specified more than once", (int)opt));
                 }
                 verbose = 1;
                 break;
 
             case 'r':
                 if (realclean) {
-                    usage();
+                    usage(apr_psprintf(pool, "The option '%c' cannot be specified more than once", (int)opt));
                 }
                 realclean = 1;
                 deldirs = 1;
@@ -847,7 +878,7 @@ int main(int argc, const char * const argv[])
 
             case 'd':
                 if (isdaemon) {
-                    usage();
+                    usage(apr_psprintf(pool, "The option '%c' cannot be specified more than once", (int)opt));
                 }
                 isdaemon = 1;
                 repeat = apr_atoi64(arg);
@@ -857,7 +888,7 @@ int main(int argc, const char * const argv[])
 
             case 'l':
                 if (limit_found) {
-                    usage();
+                    usage(apr_psprintf(pool, "The option '%c' cannot be specified more than once", (int)opt));
                 }
                 limit_found = 1;
 
@@ -882,51 +913,85 @@ int main(int argc, const char * const argv[])
                         }
                     }
                     if (rv != APR_SUCCESS) {
-                        apr_file_printf(errfile, "Invalid limit: %s"
-                                                 APR_EOL_STR APR_EOL_STR, arg);
-                        usage();
+                        usage(apr_psprintf(pool, "Invalid limit: %s"
+                                                 APR_EOL_STR APR_EOL_STR, arg));
                     }
                 } while(0);
                 break;
 
             case 'p':
                 if (proxypath) {
-                    usage();
+                    usage(apr_psprintf(pool, "The option '%c' cannot be specified more than once", (int)opt));
                 }
                 proxypath = apr_pstrdup(pool, arg);
-                if (apr_filepath_set(proxypath, pool) != APR_SUCCESS) {
-                    usage();
+                if ((status = apr_filepath_set(proxypath, pool)) != APR_SUCCESS) {
+                    usage(apr_psprintf(pool, "Could not set filepath to '%s': %s",
+                                       proxypath, apr_strerror(status, errmsg, sizeof errmsg)));
                 }
                 break;
+
+            case 'P':
+                if (pidfilename) {
+                    usage(apr_psprintf(pool, "The option '%c' cannot be specified more than once", (int)opt));
+                }
+                pidfilename = apr_pstrdup(pool, arg);
+                break;
+
             } /* switch */
         } /* else */
     } /* while */
 
-    if (o->ind != argc) {
-         usage();
+    if (argc <= 1) {
+        usage(NULL);
     }
 
-    if (isdaemon && (repeat <= 0 || verbose || realclean || dryrun)) {
-         usage();
+    if (o->ind != argc) {
+         usage("Additional parameters specified on the command line, aborting");
+    }
+
+    if (isdaemon && repeat <= 0) {
+         usage("Option -d must be greater than zero");
+    }
+
+    if (isdaemon && (verbose || realclean || dryrun)) {
+         usage("Option -d cannot be used with -v, -r or -D");
     }
 
     if (!isdaemon && intelligent) {
-         usage();
+         usage("Option -i cannot be used without -d");
     }
 
-    if (!proxypath || max <= 0) {
-         usage();
+    if (!proxypath) {
+         usage("Option -p must be specified");
+    }
+
+    if (max <= 0) {
+         usage("Option -l must be greater than zero");
     }
 
     if (apr_filepath_get(&path, 0, pool) != APR_SUCCESS) {
-        usage();
+        usage(apr_psprintf(pool, "Could not get the filepath: %s",
+                           apr_strerror(status, errmsg, sizeof errmsg)));
     }
     baselen = strlen(path);
+
+    if (pidfilename) {
+        log_pid(pool, pidfilename, &pidfile); /* before daemonizing, so we
+                                               * can report errors
+                                               */
+    }
 
 #ifndef DEBUG
     if (isdaemon) {
         apr_file_close(errfile);
+        errfile = NULL;
+        if (pidfilename) {
+            apr_file_close(pidfile); /* delete original pidfile only in parent */
+        }
         apr_proc_detach(APR_PROC_DETACH_DAEMONIZE);
+        if (pidfilename) {
+            log_pid(pool, pidfilename, &pidfile);
+        }
     }
 #endif
 

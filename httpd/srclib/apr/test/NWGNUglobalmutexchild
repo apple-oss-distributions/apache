@@ -8,7 +8,7 @@
 #
 
 ifndef EnvironmentDefined
-include $(APR_WORK)\build\NWGNUhead.inc
+include $(APR_WORK)/build/NWGNUhead.inc
 endif
 
 #
@@ -68,8 +68,6 @@ XDEFINES	+= \
 
 XLFLAGS		+= \
 			$(EOLIST)
-
-			$(EOLIST)
 endif
 
 ifeq "$(RELEASE)" "release"
@@ -97,7 +95,7 @@ NLM_NAME	= globalmutexchild
 # This is used by the link '-desc ' directive. 
 # If left blank, NLM_NAME will be used.
 #
-NLM_DESCRIPTION	= child NLM to test the global Mutex layer
+NLM_DESCRIPTION	=  child NLM to test the global Mutex layer
 
 #
 # This is used by the '-threadname' directive.  If left blank,
@@ -113,7 +111,7 @@ NLM_SCREEN_NAME = DEFAULT
 
 #
 # If this is specified, it will override VERSION value in 
-# $(APR_WORK)\build\NWGNUenvironment.inc
+# $(APR_WORK)/build/NWGNUenvironment.inc
 #
 NLM_VERSION	=
 
@@ -125,12 +123,12 @@ NLM_STACK_SIZE	=
 #
 # If this is specified it will be used by the link '-entry' directive
 #
-NLM_ENTRY_SYM	= _LibCPrelude
+NLM_ENTRY_SYM	=
 
 #
 # If this is specified it will be used by the link '-exit' directive
 #
-NLM_EXIT_SYM	= _LibCPostlude
+NLM_EXIT_SYM	=
 
 #
 # If this is specified it will be used by the link '-check' directive
@@ -147,7 +145,7 @@ NLM_FLAGS	= AUTOUNLOAD, PSEUDOPREEMPTION, MULTIPLE
 # file instead of the default of $(APR)/misc/netware/apache.xdc.  XDCData can 
 # be disabled by setting APACHE_UNIPROC in the environment
 #
-XDCDATA         = 
+XDCDATA		= 
 
 #
 # Declare all target files (you must add your files here)
@@ -157,7 +155,7 @@ XDCDATA         =
 # If there is an NLM target, put it here
 #
 TARGET_nlm = \
-	$(OBJDIR)/$(NLM_NAME).nlm \
+	$(OBJDIR)/globalmutexchild.nlm \
 	$(EOLIST)
 
 #
@@ -171,7 +169,7 @@ TARGET_lib = \
 # Paths must all use the '/' character
 #
 FILES_nlm_objs = \
-	$(OBJDIR)/$(NLM_NAME).o \
+	$(OBJDIR)/globalmutexchild.o \
 	$(EOLIST)
 
 #
@@ -179,7 +177,7 @@ FILES_nlm_objs = \
 # These will be added as a library command in the link.opt file.
 #
 FILES_nlm_libs = \
-	libcpre.o \
+	$(PRELUDE) \
 	$(EOLIST)
 
 #
@@ -210,7 +208,7 @@ FILE_nlm_copyright =
 # Any additional imports go here
 #
 FILES_nlm_Ximports = \
-	@$(APR)/aprlib.imp \
+	@aprlib.imp \
 	@libc.imp \
 	$(EOLIST)
  
@@ -237,7 +235,7 @@ nlms :: libs $(TARGET_nlm)
 
 #
 # Updated this target to create necessary directories and copy files to the 
-# correct place.  (See $(APR_WORK)\build\NWGNUhead.inc for examples)
+# correct place.  (See $(APR_WORK)/build/NWGNUhead.inc for examples)
 #
 install :: nlms FORCE
 
@@ -250,5 +248,5 @@ install :: nlms FORCE
 # in this makefile
 #
 
-include $(APR_WORK)\build\NWGNUtail.inc
+include $(APRBUILD)/NWGNUtail.inc
 

@@ -1,4 +1,378 @@
-﻿                                                         -*- coding: utf-8 -*-
+                                                         -*- coding: utf-8 -*-
+Changes with Apache 2.2.19
+
+  *) Revert ABI breakage in 2.2.18 caused by the function signature change
+     of ap_unescape_url_keep2f().  This release restores the signature from
+     2.2.17 and prior, and introduces ap_unescape_url_keep2f_ex().
+     [Eric Covener] 
+
+Changes with Apache 2.2.18
+
+  *) Log an error for failures to read a chunk-size, and return 408 instead
+     413 when this is due to a read timeout.  This change also fixes some cases 
+     of two error documents being sent in the response for the same scenario. 
+     [Eric Covener] PR49167
+
+  *) core: Only log a 408 if it is no keepalive timeout. PR 39785
+     [Ruediger Pluem,  Mark Montague <markmont umich.edu>]
+
+  *) core: Treat timeout reading request as 408 error, not 400.
+     Log 408 errors in access log as was done in Apache 1.3.x.
+     PR 39785 [Nobutaka Mantani <nobutaka nobutaka.org>, Stefan Fritsch,
+     Dan Poirier]
+
+  *) Core HTTP: disable keepalive when the Client has sent
+     Expect: 100-continue
+     but we respond directly with a non-100 response.  Keepalive here led
+     to data from clients continuing being treated as a new request.
+     PR 47087.  [Nick Kew]
+
+  *) htpasswd: Change the default algorithm for htpasswd to MD5 on all
+     platforms. Crypt with its 8 character limit is not useful anymore;
+     improve out of disk space handling (PR 30877); print a warning if
+     a password is truncated by crypt. [Stefan Fritsch]
+
+  *) mod_win32: Added shebang check for '! so that .vbs scripts work as CGI.
+     Win32's cscript interpreter can only use a single quote as comment char.
+     [Guenter Knauf]
+
+  *) configure: Fix htpasswd/htdbm libcrypt link errors with some newer
+     linkers. [Stefan Fritsch]
+
+  *) MinGW build improvements.  PR 49535.  [John Vandenberg 
+     <jayvdb gmail.com>, Jeff Trawick]
+
+  *) mod_ssl, ab: Support OpenSSL compiled without SSLv2 support.
+     [Stefan Fritsch]
+
+  *) core: AllowEncodedSlashes new option NoDecode to allow encoded slashes
+     in request URL path info but not decode them. PR 35256,
+     PR 46830.  [Dan Poirier]
+
+  *) mod_rewrite: Allow to unset environment variables. PR 50746.
+     [Rainer Jung]
+
+  *) suEXEC: Add Suexec directive to disable suEXEC without renaming the
+     binary (Suexec Off), or force startup failure if suEXEC is required
+     but not supported (Suexec On).  [Jeff Trawick]
+
+  *) mod_proxy: Put the worker in error state if the SSL handshake with the
+     backend fails. PR 50332.
+     [Daniel Ruggeri <DRuggeri primary.net>, Ruediger Pluem]
+
+  *) prefork: Update MPM state in children during a graceful restart.
+     Allow the HTTP connection handling loop to terminate early 
+     during a graceful restart.  PR 41743.
+     [Andrew Punch <andrew.punch 247realmedia.com>]
+
+  *) mod_ssl: Correctly read full lines in input filter when the line is
+     incomplete during first read. PR 50481. [Ruediger Pluem]
+
+  *) mod_autoindex: Merge IndexOptions from server to directory context when
+     the directory has no mod_autoindex directives. PR 47766. [Eric Covener]
+
+  *) mod_cache: Make sure that we never allow a 304 Not Modified response
+     that we asked for to leak to the client should the 304 response be
+     uncacheable. PR45341 [Graham Leggett]
+
+  *) mod_dav: Send 400 error if malformed Content-Range header is received for
+     a put request (RFC 2616 14.16). PR 49825. [Stefan Fritsch]
+
+  *) mod_userdir: Add merging of enable, disable, and filename arguments
+     to UserDir directive, leaving enable/disable of userlists unmerged.
+     PR 44076 [Eric Covener]
+
+  *) core: Honor 'AcceptPathInfo OFF' during internal redirects,
+     such as per-directory mod_rewrite substitutions.  PR 50349.
+     [Eric Covener]
+
+  *) mod_cache: Check the request to determine whether we are allowed
+     to return cached content at all, and respect a "Cache-Control:
+     no-cache" header from a client. Previously, "no-cache" would
+     behave like "max-age=0". [Graham Leggett]
+
+  *) mod_mem_cache: Add a debug msg when a streaming response exceeds
+     MCacheMaxStreamingBuffer, since mod_cache will follow up with a scary
+     'memory allocation failed' debug message. PR 49604. [Eric Covener]
+
+  *) proxy_connect: Don't give up in the middle of a CONNECT tunnel
+     when the child process is starting to exit.  PR50220. [Eric Covener]
+
+Changes with Apache 2.2.17
+
+  *) prefork MPM: Run cleanups for final request when process exits gracefully
+     to work around a flaw in apr-util.  PR 43857.  [Tom Donovan]
+
+  *) mod_reqtimeout: Do not wrongly enforce timeouts for mod_proxy's backend
+     connections and other protocol handlers (like mod_ftp). Enforce the
+     timeout for AP_MODE_GETLINE. If there is a timeout, shorten the lingering
+     close time from 30 to 2 seconds. [Stefan Fritsch]
+
+  *) Proxy balancer: support setting error status according to HTTP response
+     code from a backend.  PR 48939.  [Daniel Ruggeri <DRuggeri primary.net>]
+
+  *) mod_authnz_ldap: If AuthLDAPCharsetConfig is set, also convert the
+     password to UTF-8. PR 45318.
+     [Johannes Müller <joh_m gmx.de>, Stefan Fritsch]
+
+  *) core: check symlink ownership if both FollowSymlinks and
+     SymlinksIfOwnerMatch are set [Nick Kew]
+
+  *) core: fix origin checking in SymlinksIfOwnerMatch
+     PR 36783 [Robert L Mathews <rob-apache.org.bugs tigertech.net>]
+
+  *) mod_headers: Enable multi-match-and-replace edit option
+     PR 46594 [Nick Kew]
+
+  *) mod_log_config: Make ${cookie}C correctly match whole cookie names
+     instead of substrings. PR 28037. [Dan Franklin <dan dan-franklin.com>,
+     Stefan Fritsch]
+
+  *) mod_dir, mod_negotiation: Pass the output filter information
+     to newly created sub requests; as these are later on used
+     as true requests with an internal redirect. This allows for
+     mod_cache et.al. to trap the results of the redirect.
+     PR 17629, 43939
+     [Dirk-Willem van Gulik, Jim Jagielski, Joe Orton, Ruediger Pluem]
+
+  *) rotatelogs: Fix possible buffer overflow if admin configures a
+     mongo log file path. [Jeff Trawick]
+
+  *) mod_ssl: Do not do overlapping memcpy. PR 45444 [Joe Orton]
+
+  *) vhost: A purely-numeric Host: header should not be treated as a port.
+     PR 44979 [Nick Kew]
+
+  *) core: (re)-introduce -T commandline option to suppress documentroot
+     check at startup.
+     PR 41887 [Jan van den Berg <janvdberg gmail.com>]
+
+Changes with Apache 2.2.16
+
+  *) SECURITY: CVE-2010-1452 (cve.mitre.org)
+     mod_dav, mod_cache: Fix Handling of requests without a path segment.
+     PR: 49246 [Mark Drayton, Jeff Trawick]
+
+  *) SECURITY: CVE-2010-2068 (cve.mitre.org)
+     mod_proxy_ajp, mod_proxy_http, mod_reqtimeout: Fix timeout detection
+     for platforms Windows, Netware and OS2.  PR: 49417. [Rainer Jung]
+
+  *) core: Filter init functions are now run strictly once per request
+     before handler invocation.  The init functions are no longer run
+     for connection filters.  PR 49328.  [Joe Orton]
+
+  *) mod_filter: enable it to act on non-200 responses.
+     PR 48377 [Nick Kew]
+
+  *) mod_ldap: LDAP caching was suppressed (and ldap-status handler returns
+     title page only) when any mod_ldap directives were used in VirtualHost
+     context.  [Eric Covener]
+
+  *) mod_ssl: Fix segfault at startup if proxy client certs are shared
+     across multiple vhosts.  PR 39915.  [Joe Orton]
+
+  *) mod_proxy_http: Log the port of the remote server in various messages.
+     PR 48812. [Igor Galić <i galic brainsware org>] 
+
+  *) apxs: Fix -A and -a options to ignore whitespace in httpd.conf
+     [Philip M. Gollucci]
+
+  *) mod_dir: add FallbackResource directive, to enable admin to specify
+     an action to happen when a URL maps to no file, without resorting
+     to ErrorDocument or mod_rewrite.  PR 47184 [Nick Kew]
+
+  *) mod_rewrite: Allow to set environment variables without explicitly
+     giving a value. [Rainer Jung]
+
+
+Changes with Apache 2.2.15
+
+  *) SECURITY: CVE-2009-3555 (cve.mitre.org)
+     mod_ssl: Comprehensive fix of the TLS renegotiation prefix injection
+     attack when compiled against OpenSSL version 0.9.8m or later. Introduces
+     the 'SSLInsecureRenegotiation' directive to reopen this vulnerability
+     and offer unsafe legacy renegotiation with clients which do not yet
+     support the new secure renegotiation protocol, RFC 5746.
+     [Joe Orton, and with thanks to the OpenSSL Team]
+
+  *) SECURITY: CVE-2009-3555 (cve.mitre.org)
+     mod_ssl: A partial fix for the TLS renegotiation prefix injection attack
+     for OpenSSL versions prior to 0.9.8l; reject any client-initiated
+     renegotiations. Forcibly disable keepalive for the connection if there
+     is any buffered data readable. Any configuration which requires
+     renegotiation for per-directory/location access control is still
+     vulnerable, unless using openssl 0.9.8l or later.
+     [Joe Orton, Ruediger Pluem, Hartmut Keil <Hartmut.Keil adnovum.ch>]
+
+  *) SECURITY: CVE-2010-0408 (cve.mitre.org)
+     mod_proxy_ajp: Respond with HTTP_BAD_REQUEST when the body is not sent
+     when request headers indicate a request body is incoming; not a case of
+     HTTP_INTERNAL_SERVER_ERROR.  [Niku Toivola <niku.toivola sulake.com>]
+
+  *) SECURITY: CVE-2010-0425 (cve.mitre.org)
+     mod_isapi: Do not unload an isapi .dll module until the request
+     processing is completed, avoiding orphaned callback pointers.
+     [Brett Gervasoni <brettg senseofsecurity.com>, Jeff Trawick]
+
+  *) SECURITY: CVE-2010-0434 (cve.mitre.org)
+     Ensure each subrequest has a shallow copy of headers_in so that the
+     parent request headers are not corrupted.  Eliminates a problematic
+     optimization in the case of no request body.  PR 48359.
+     [Jake Scott, William Rowe, Ruediger Pluem]
+
+  *) mod_reqtimeout: New module to set timeouts and minimum data rates for
+     receiving requests from the client. [Stefan Fritsch]
+
+  *) mod_proxy_ajp: Really regard the operation a success, when the client
+     aborted the connection. In addition adjust the log message if the client
+     aborted the connection. [Ruediger Pluem]
+
+  *) mod_negotiation: Preserve query string over multiviews negotiation.
+     This buglet was fixed for type maps in 2.2.6, but the same issue
+     affected multiviews and was overlooked.
+     PR 33112.  [Joergen Thomsen <apache jth.net>]
+
+  *) mod_cache: Introduce the thundering herd lock, a mechanism to keep
+     the flood of requests at bay that strike a backend webserver as
+     a cached entity goes stale. [Graham Leggett]
+
+  *) mod_proxy_http: Make sure that when an ErrorDocument is served
+     from a reverse proxied URL, that the subrequest respects the status
+     of the original request. This brings the behaviour of proxy_handler
+     in line with default_handler. PR 47106. [Graham Leggett]
+
+  *) mod_log_config: Add the R option to log the handler used within the
+     request. [Christian Folini <christian.folini netnea com>]
+
+  *) mod_include: Allow fine control over the removal of Last-Modified and
+     ETag headers within the INCLUDES filter, making it possible to cache
+     responses if desired. Fix the default value of the SSIAccessEnable
+     directive. [Graham Leggett]
+
+  *) mod_ssl: Fix a potential I/O hang if a long list of trusted CAs
+     is configured for client cert auth. PR 46952.  [Joe Orton]
+
+  *) core: Fix potential memory leaks by making sure to not destroy
+     bucket brigades that have been created by earlier filters.
+     [Stefan Fritsch]
+
+  *) mod_authnz_ldap: Add AuthLDAPBindAuthoritative to allow Authentication to
+     try other providers in the case of an LDAP bind failure.
+     PR 46608.  [Justin Erenkrantz, Joe Schaefer, Tony Stevenson]
+
+  *) mod_proxy, mod_proxy_http: Support remote https proxies
+     by using HTTP CONNECT.
+     PR 19188.  [Philippe Dutrueux <lilas evidian.com>, Rainer Jung]
+
+  *) worker: Don't report server has reached MaxClients until it has.
+     Add message when server gets within MinSpareThreads of MaxClients.
+     PR 46996.  [Dan Poirier]
+
+  *) mod_ssl: When extracting certificate subject/issuer names to the
+     SSL_*_DN_* variables, handle RDNs with duplicate tags by
+     exporting multiple varialables with an "_n" integer suffix.
+     PR 45875.  [Joe Orton, Peter Sylvester <peter.sylvester edelweb.fr>]
+
+  *) mod_authnz_ldap: Failures to map a username to a DN, or to check a user
+     password now result in an informational level log entry instead of 
+     warning level.  [Eric Covener]
+
+  *) core: Preserve Port information over internal redirects
+     PR 35999.  [Jonas Ringh <jonas.ringh cixit.se>]
+
+  *) mod_filter: fix FilterProvider matching where "dispatch" string
+     doesn't exist.
+     PR 48054.  [<tietew gmail.com>]
+
+  *) Build: fix --with-module to work as documented
+     PR 43881.  [Gez Saunders <gez.saunders virgin.net>]
+
+  *) mod_mime: Make RemoveType override the info from TypesConfig.
+     PR 38330.  [Stefan Fritsch]
+
+  *) mod_proxy: unable to connect to a backend is SERVICE_UNAVAILABLE,
+     rather than BAD_GATEWAY or (especially) NOT_FOUND.
+     PR 46971.  [Evan Champion <evanc nortel.com>]
+
+  *) mod_charset_lite: Honor 'CharsetOptions NoImplicitAdd'.
+     [Eric Covener]
+
+  *) mod_ldap: If LDAPSharedCacheSize is too small, try harder to purge
+     some cache entries and log a warning. Also increase the default
+     LDAPSharedCacheSize to 500000. This is a more realistic size suitable
+     for the default values of 1024 for LdapCacheEntries/LdapOpCacheEntries.
+     PR 46749.  [Stefan Fritsch]
+
+  *) mod_disk_cache, mod_mem_cache: don't cache incomplete responses,
+     per RFC 2616, 13.8.  PR15866.  [Dan Poirier]
+
+  *) mod_rewrite: Make sure that a hostname:port isn't fully qualified if
+     the request is a CONNECT request.  PR 47928.
+     [Bill Zajac <billz consultla.com>]
+
+  *) mod_cache: correctly consider s-maxage in cacheability
+     decisions.  [Dan Poirier]
+
+  *) core: Return APR_EOF if request body is shorter than the length announced
+     by the client. PR 33098.  [Stefan Fritsch]
+
+  *) mod_rewrite: Add scgi scheme detection.  [André Malo]
+
+  *) mod_mime: Detect invalid use of MultiviewsMatch inside Location and
+     LocationMatch sections.  PR 47754.  [Dan Poirier]
+
+  *) ab, mod_ssl: Restore compatibility with OpenSSL < 0.9.7g.
+     [Guenter Knauf]
+
+Changes with Apache 2.2.14
+
+  *) SECURITY: CVE-2009-2699 (cve.mitre.org)
+     Fixed in APR 1.3.9.  Faulty error handling in the Solaris pollset support
+     (Event Port backend) which could trigger hangs in the prefork and event
+     MPMs on that platform.  PR 47645.  [Jeff Trawick]
+
+  *) SECURITY: CVE-2009-3095 (cve.mitre.org)
+     mod_proxy_ftp: sanity check authn credentials.
+     [Stefan Fritsch <sf fritsch.de>, Joe Orton]
+
+  *) SECURITY: CVE-2009-3094 (cve.mitre.org)
+     mod_proxy_ftp: NULL pointer dereference on error paths.
+     [Stefan Fritsch <sf fritsch.de>, Joe Orton]
+
+  *) mod_proxy_scgi: Backport from trunk. [André Malo]
+
+  *) mod_ldap: Don't try to resolve file-based user ids to a DN when AuthLDAPURL
+     has been defined at a very high level.  PR 45946.  [Eric Covener]
+
+  *) htcacheclean: 19 ways to fail, 1 error message. Fixed. [Graham Leggett]
+
+  *) mod_ldap: Bring the LDAPCacheEntries and LDAPOpCacheEntries
+     usage() in synch with the manual and the implementation (0 and -1
+     both disable the cache). [Eric Covener]
+
+  *) mod_ssl: The error message when SSLCertificateFile is missing should
+     at least give the name or position of the problematic virtual host
+     definition. [Stefan Fritsch sf sfritsch.de]
+
+  *) htdbm: Fix possible buffer overflow if dbm database has very
+     long values.  PR 30586 [Dan Poirier]
+
+  *) Add support for HTTP PUT to ab. [Jeff Barnes <jbarnesweb yahoo.com>]
+
+  *) mod_ssl: Fix SSL_*_DN_UID variables to use the 'userID' attribute
+     type.  PR 45107.  [Michael Ströder <michael stroeder.com>,
+     Peter Sylvester <peter.sylvester edelweb.fr>]
+
+  *) mod_cache: Add CacheIgnoreURLSessionIdentifiers directive to ignore
+     defined session identifiers encoded in the URL when caching.
+     [Ruediger Pluem]
+
+  *) mod_mem_cache: fix seg fault under load due to pool concurrency problem
+     PR: 47672 [Dan Poirier <poirier pobox.com>]
+
+  *) mod_autoindex: Correctly create an empty cell if the description
+     for a file is missing. PR 47682 [Peter Poeml <poeml suse.de>]
+
 Changes with Apache 2.2.13
 
   *) SECURITY: CVE-2009-2412 (cve.mitre.org)
@@ -162,8 +536,8 @@ Changes with Apache 2.2.12
   *) mod_include: support generating non-ASCII characters as entities in SSI
      PR 25202 [Nick Kew] 
 
-  *) core/utils: Enhance ap_escape_html API to support escaping non-ASCII chars
-     [Nick Kew]
+  *) core/utils: Enhance ap_escape_html API to support escaping non-ASCII
+     chars [Nick Kew]
 
   *) mod_rewrite: fix "B" flag breakage by reverting r589343
      PR 45529 [Bob Ionescu <bobsiegen googlemail.com>]
@@ -171,12 +545,13 @@ Changes with Apache 2.2.12
   *) mod_cgid: fix segfault problem on solaris.
      PR 39332 [Masaoki Kobayashi <masaoki techfirm.co.jp>, Jeff Trawick]
 
-  *) mod_ldap: Avoid a segfault when result->rc is checked in uldap_connection_init
-     when result is NULL. This could happen if LDAP initialization failed.
-     PR 45994.  [Dan Poirier <poirier pobox.com>]
+  *) mod_ldap: Avoid a segfault when result->rc is checked in
+     uldap_connection_init when result is NULL. This could happen if LDAP
+     initialization failed.  PR 45994. [Dan Poirier <poirier pobox.com>]
 
-  *) Set Listen protocol to "https" if port is set to 443 and no proto is specified
-     (as documented but not implemented). PR 46066  [Dan Poirier <poirier pobox.com>]
+  *) Set Listen protocol to "https" if port is set to 443 and no proto is
+     specified (as documented but not implemented). PR 46066
+     [Dan Poirier <poirier pobox.com>]
 
   *) mod_cache: Correctly save Content-Encoding of cachable entity. PR 46401
      [Dan Poirier <poirier pobox.com>]
@@ -291,9 +666,9 @@ Changes with Apache 2.2.10
   *) mod_charset_lite: Avoid dropping error responses by handling meta buckets
      correctly. PR 45687 [Dan Poirier <poirier pobox.com>]
 
-  *) mod_proxy_http: Introduce environment variable proxy-initial-not-pooled to
-     avoid reusing pooled connections if the client connection is an initial
-     connection. PR 37770. [Ruediger Pluem]
+  *) mod_proxy_http: Introduce environment variable proxy-initial-not-pooled
+     to avoid reusing pooled connections if the client connection is an
+     initial connection. PR 37770. [Ruediger Pluem]
 
   *) mod_rewrite: Allow Cookie option to set secure and HttpOnly flags.
      PR 44799 [Christian Wenz <christian wenz.org>]
@@ -580,8 +955,8 @@ Changes with Apache 2.2.7 (not released)
      contents in other-than ISO-8859-1 charset (e.g. utf-8). [Ruediger Pluem]
 
   *) mod_dav: Adjust etag generation to produce identical results on 32-bit
-     and 64-bit platforms and avoid a regression with conditional PUT's on lock
-     and etag. PR 44152.
+     and 64-bit platforms and avoid a regression with conditional PUT's on
+     lock and etag. PR 44152.
      [Michael Clark <michael metaparadigm.com>, Ruediger Pluem]
 
   *) mod_ssl: Fix handling of the buffered request body during a per-location
@@ -820,8 +1195,8 @@ Changes with Apache 2.2.6
      PR 43183 [Brian Rectanus <Brian.Rectanus breach.com>, Vincent Bray]
 
   *) mod_proxy: Ensure that at least scheme://hostname[:port] matches between
-     worker and URL when searching for the best fitting worker for a given URL.
-     PR 40910 [Ruediger Pluem]
+     worker and URL when searching for the best fitting worker for a given
+     URL.  PR 40910 [Ruediger Pluem]
 
   *) mod_proxy: Improve network performance by setting APR_TCP_NODELAY
      (disable Nagle algorithm) on sockets if implemented.
@@ -1026,8 +1401,9 @@ Changes with Apache 2.2.6
      [Takashi Sato <serai  lans-tv.com>]
 
   *) mod_ldap: Remove the hardcoded size limit parameter for
-     ldap_search_ext_s and replace it with an APR_ defined
-     value that is set according to the LDAP SDK being used.
+     ldap_search_ext_s and replace it with an APR_ defined value that 
+     is set according to the LDAP SDK being used, resolving a problem
+     with SDKs that define LDAP_NO_LIMIT to something other than -1.
      [David Jones <oscaremma gmail com>]
 
   *) core: Correct a regression since 2.0.x in the handling of AllowOverride 
@@ -1062,10 +1438,11 @@ Changes with Apache 2.2.4
   *) core: Fix NONBLOCK status of listening sockets on restart/graceful
      PR 37680.  [Darius Davis <darius-abz free-range.com.au>]
 
-  *) mod_deflate: Rework inflate output and deflate output filter to fix several
-     issues: Incorrect handling of flush buckets, potential memory leaks,
-     excessive memory usage in inflate output filter for large compressed
-     content. PR 39854. [Ruediger Pluem, Nick Kew, Justin Erenkrantz]
+  *) mod_deflate: Rework inflate output and deflate output filter to fix
+     several issues: Incorrect handling of flush buckets, potential memory
+     leaks, excessive memory usage in inflate output filter for large
+     compressed content. PR 39854.
+     [Ruediger Pluem, Nick Kew, Justin Erenkrantz]
 
   *) mod_mem_cache: Memory leak fix: Unconditionally free the buffer.
      [Davi Arnaut <davi haxent.com.br>]
@@ -1105,7 +1482,8 @@ Changes with Apache 2.2.4
      AP_FILTER_ERROR.  [Niklas Edmundsson <nikke acc.umu.se>]
 
   *) core: Fix issue which could cause piped loggers to be orphaned and never
-     terminate after a graceful restart.  PR 40651.  [Joe Orton, Ruediger Pluem]
+     terminate after a graceful restart.  PR 40651.
+     [Joe Orton, Ruediger Pluem]
 
   *) core: Fix address-in-use startup failure caused by corruption of the list
      of listen sockets in some configurations with multiple generic Listen
@@ -1113,16 +1491,17 @@ Changes with Apache 2.2.4
 
   *) mod_headers: Support regexp-based editing of HTTP headers.  [Nick Kew]
 
-  *) mod_proxy: Add explicit flushing feature. When Servlet container sends AJP
-     body message with size 0, this means that Servlet container has asked for
-     an explicit flush. Create flush bucket in that case. This feature has been
-     added to the recent Tomcat versions without breaking the AJP protocol.
-     [Mladen Turk]
+  *) mod_proxy: Add explicit flushing feature. When Servlet container sends
+     AJP body message with size 0, this means that Servlet container has asked
+     for an explicit flush. Create flush bucket in that case. This feature has
+     been added to the recent Tomcat versions without breaking the AJP
+     protocol.  [Mladen Turk]
 
-  *) mod_proxy_balancer: Set the new environment variable BALANCER_ROUTE_CHANGED
-     if a worker with a route different from the one supplied by the client
-     had been chosen or if the client supplied no routing information for
-     a balancer with sticky sessions.  [Ruediger Pluem]
+  *) mod_proxy_balancer: Set the new environment variable
+     BALANCER_ROUTE_CHANGED if a worker with a route different from the one
+     supplied by the client had been chosen or if the client supplied no
+     routing information for a balancer with sticky sessions.
+     [Ruediger Pluem]
 
   *) mod_proxy_balancer: Add information about the route, the sticky session
      and the worker used during a request as environment variables. PR 39806.
@@ -1131,8 +1510,8 @@ Changes with Apache 2.2.4
   *) mod_proxy: Don't try to use dead backend connection. PR 37770.
      [Olivier BOEL <ob dorrboel.com>] 
 
-  *) mod_proxy_balancer: Extract stickysession routing information contained as
-     parameter in the URL correctly. PR 40400.
+  *) mod_proxy_balancer: Extract stickysession routing information contained
+     as parameter in the URL correctly. PR 40400.
      [Ruediger Pluem, Tomokazu Harada <harada sysrdc.ns-sol.co.jp>]
 
   *) mod_proxy_ajp: Added cping/cpong support for the AJP protocol.
@@ -1180,8 +1559,8 @@ Changes with Apache 2.2.4
      PR 30022, 40470.  [William Rowe, Matt Eaton <asf divinehawk.com>]
 
   *) mod_isapi: Ensure we walk through all the methods the developer may have
-     employed to report their HTTP status result code.
-     PR 16637 30033 28089.  [Matt Lewandowsky <matt iamcode.net>, William Rowe]
+     employed to report their HTTP status result code.  PR 16637 30033 28089
+     [Matt Lewandowsky <matt iamcode.net>, William Rowe]
 
   *) mod_echo: Fix precedence problem in if statement. PR 40658.
      [Larry Cipriani <lvc lucent.com>]
@@ -1191,9 +1570,9 @@ Changes with Apache 2.2.4
 
   *) The full server version information is now included in the error log at
      startup as well as server status reports, irrespective of the setting
-     of the ServerTokens directive.  ap_get_server_version() is now deprecated,
-     and is replaced by ap_get_server_banner() and ap_get_server_description().
-     [Jeff Trawick]
+     of the ServerTokens directive.  ap_get_server_version() is now
+     deprecated, and is replaced by ap_get_server_banner() and
+     ap_get_server_description().  [Jeff Trawick]
 
   *) mod_proxy_balancer: Workers can now be defined as part of
      a balancer cluster "set" in which members of a lower-numbered set
@@ -1374,9 +1753,9 @@ Changes with Apache 2.2.1
   *) mod_proxy_ajp: Support common headers of the AJP protocol in responses.
      PR 38340. [Aleksey Pesternikov <apesternikov yahoo.com>]
 
-  *) mod_proxy_balancer: Do not overwrite the status of initialized workers and
-     respect the configured status of uninitilized workers when creating a new
-     child process. [Ruediger Pluem]
+  *) mod_proxy_balancer: Do not overwrite the status of initialized workers
+     and respect the configured status of uninitilized workers when creating
+     a new child process. [Ruediger Pluem]
 
   *) mod_proxy_ajp: Crosscheck the length of the body chunk with the length of
      the ajp message to prevent mod_proxy_ajp from reading beyond the buffer
@@ -1388,7 +1767,8 @@ Changes with Apache 2.2.1
      resetting r->status_line, such as the built-in byterange filter.
      [Jeff Trawick]
 
-  *) mod_speling: Stop crashing with certain non-file requests.  [Jeff Trawick]
+  *) mod_speling: Stop crashing with certain non-file requests.
+     [Jeff Trawick]
 
   *) mod_cache: Make caching of reverse proxies possible again. PR 38017.
      [Ruediger Pluem]
@@ -2362,6 +2742,3 @@ Changes with Apache 2.0.x and later:
 
   *) http://svn.apache.org/viewvc/httpd/httpd/branches/2.0.x/CHANGES?view=markup
 
-Changes with Apache 1.3.x and later:
-
-  *) http://svn.apache.org/viewvc/httpd/httpd/branches/1.3.x/src/CHANGES?view=markup

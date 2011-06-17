@@ -606,6 +606,13 @@ static unsigned is_absolute_uri(char *uri)
             return 7;
         }
         break;
+
+    case 's':
+    case 'S':
+        if (!strncasecmp(uri, "cgi://", 6)) {       /* scgi://   */
+            return 7;
+        }
+        break;
     }
 
     return 0;
@@ -838,7 +845,10 @@ static void reduce_uri(request_rec *r)
  */
 static void fully_qualify_uri(request_rec *r)
 {
-    if (!is_absolute_uri(r->filename)) {
+    if (r->method_number == M_CONNECT) {
+        return;
+    }
+    else if (!is_absolute_uri(r->filename)) {
         const char *thisserver;
         char *thisport;
         int port;
@@ -2337,8 +2347,17 @@ static void do_expand_env(data_item *env, rewrite_ctx *ctx)
 
     while (env) {
         name = do_expand(env->data, ctx, NULL);
-        if ((val = ap_strchr(name, ':')) != NULL) {
-            *val++ = '\0';
+        if (*name == '!') {
+            name++;
+            apr_table_unset(ctx->r->subprocess_env, name);
+            rewritelog((ctx->r, 5, NULL, "unsetting env variable '%s'", name));
+        }
+        else {
+            if ((val = ap_strchr(name, ':')) != NULL) {
+                *val++ = '\0';
+            } else {
+                val = "";
+            }
 
             apr_table_set(ctx->r->subprocess_env, name, val);
             rewritelog((ctx->r, 5, NULL, "setting env variable '%s' to '%s'",
@@ -3004,7 +3023,7 @@ static const char *cmd_rewritelock(cmd_parms *cmd, void *dconf, const char *a1)
     lockname = ap_server_root_relative(cmd->pool, a1);
 
     if (!lockname) {
-        return apr_pstrcat(cmd->pool, "Invalid RewriteLock path ", a1);
+        return apr_pstrcat(cmd->pool, "Invalid RewriteLock path ", a1, NULL);
     }
 
     return NULL;
@@ -3168,7 +3187,7 @@ static const char *cmd_rewritecond(cmd_parms *cmd, void *in_dconf,
     }
 
     /* determine the pattern type */
-    newcond->ptype = 0;
+    newcond->ptype = CONDPAT_REGEX;
     if (*a2 && a2[1]) {
         if (!a2[2] && *a2 == '-') {
             switch (a2[1]) {

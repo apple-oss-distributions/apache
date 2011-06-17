@@ -189,10 +189,17 @@ typedef STACK_OF(X509) X509_STACK_TYPE;
 
 #endif
 
-#if defined(USE_SSL) && (OPENSSL_VERSION_NUMBER >= 0x00909000)
+#if defined(USE_SSL)
+#if (OPENSSL_VERSION_NUMBER >= 0x00909000)
 #define AB_SSL_METHOD_CONST const
 #else
 #define AB_SSL_METHOD_CONST
+#endif
+#if (OPENSSL_VERSION_NUMBER >= 0x0090707f)
+#define AB_SSL_CIPHER_CONST const
+#else
+#define AB_SSL_CIPHER_CONST
+#endif
 #endif
 
 #include <math.h>
@@ -486,7 +493,7 @@ static void ssl_rand_seed(void)
 
 static int ssl_print_connection_info(BIO *bio, SSL *ssl)
 {
-    const SSL_CIPHER *c;
+    AB_SSL_CIPHER_CONST SSL_CIPHER *c;
     int alg_bits,bits;
 
     c = SSL_get_current_cipher(ssl);
@@ -572,7 +579,7 @@ static void ssl_proceed_handshake(struct connection *c)
             if (verbosity >= 2)
                 ssl_print_info(c);
             if (ssl_info == NULL) {
-                const SSL_CIPHER *ci;
+                AB_SSL_CIPHER_CONST SSL_CIPHER *ci;
                 X509 *cert;
                 int sk_bits, pk_bits, swork;
 
@@ -763,8 +770,10 @@ static void output_results(int sig)
     if (keepalive)
         printf("Keep-Alive requests:    %d\n", doneka);
     printf("Total transferred:      %" APR_INT64_T_FMT " bytes\n", totalread);
-    if (posting > 0)
+    if (posting == 1)
         printf("Total POSTed:           %" APR_INT64_T_FMT "\n", totalposted);
+    if (posting == 2)
+        printf("Total PUT:              %" APR_INT64_T_FMT "\n", totalposted);
     printf("HTML transferred:       %" APR_INT64_T_FMT " bytes\n", totalbread);
 
     /* avoid divide by zero */
@@ -1048,8 +1057,12 @@ static void output_html_results(void)
     printf("<tr %s><th colspan=2 %s>Total transferred:</th>"
        "<td colspan=2 %s>%" APR_INT64_T_FMT " bytes</td></tr>\n",
        trstring, tdstring, tdstring, totalread);
-    if (posting > 0)
+    if (posting == 1)
         printf("<tr %s><th colspan=2 %s>Total POSTed:</th>"
+           "<td colspan=2 %s>%" APR_INT64_T_FMT "</td></tr>\n",
+           trstring, tdstring, tdstring, totalposted);
+    if (posting == 2)
+        printf("<tr %s><th colspan=2 %s>Total PUT:</th>"
            "<td colspan=2 %s>%" APR_INT64_T_FMT "</td></tr>\n",
            trstring, tdstring, tdstring, totalposted);
     printf("<tr %s><th colspan=2 %s>HTML transferred:</th>"
@@ -1606,12 +1619,13 @@ static void test(void)
     }
     else {
         snprintf_res = apr_snprintf(request,  sizeof(_request),
-            "POST %s HTTP/1.0\r\n"
+            "%s %s HTTP/1.0\r\n"
             "%s" "%s" "%s"
             "Content-length: %" APR_SIZE_T_FMT "\r\n"
             "Content-type: %s\r\n"
             "%s"
             "\r\n",
+            (posting == 1) ? "POST" : "PUT",
             (isproxy) ? fullurl : path,
             keepalive ? "Connection: Keep-Alive\r\n" : "",
             cookie, auth,
@@ -1623,14 +1637,15 @@ static void test(void)
     }
 
     if (verbosity >= 2)
-        printf("INFO: POST header == \n---\n%s\n---\n", request);
+        printf("INFO: %s header == \n---\n%s\n---\n", 
+                (posting == 2) ? "PUT" : "POST", request);
 
     reqlen = strlen(request);
 
     /*
      * Combine headers and (optional) post file into one contineous buffer
      */
-    if (posting == 1) {
+    if (posting >= 1) {
         char *buff = malloc(postlen + reqlen + 1);
         if (!buff) {
             fprintf(stderr, "error creating request buffer: out of memory\n");
@@ -1682,7 +1697,9 @@ static void test(void)
         const apr_pollfd_t *pollresults;
 
         n = concurrency;
+        do {
         status = apr_pollset_poll(readbits, aprtimeout, &n, &pollresults);
+        } while (APR_STATUS_IS_EINTR(status));
         if (status != APR_SUCCESS)
             apr_err("apr_poll", status);
 
@@ -1735,6 +1752,10 @@ static void test(void)
                 if (c->state == STATE_CONNECTING) {
                     apr_pollfd_t remove_pollfd;
                     rv = apr_socket_connect(c->aprsock, destsa);
+                    if (rv == EALREADY) {
+                        // 7484748
+                        continue;
+                    }
                     remove_pollfd.desc_type = APR_POLL_SOCKET;
                     remove_pollfd.desc.s = c->aprsock;
                     apr_pollset_remove(readbits, &remove_pollfd);
@@ -1831,6 +1852,7 @@ static void usage(const char *progname)
     fprintf(stderr, "    -t timelimit    Seconds to max. wait for responses\n");
     fprintf(stderr, "    -b windowsize   Size of TCP send/receive buffer, in bytes\n");
     fprintf(stderr, "    -p postfile     File containing data to POST. Remember also to set -T\n");
+    fprintf(stderr, "    -u putfile      File containing data to PUT. Remember also to set -T\n");
     fprintf(stderr, "    -T content-type Content-type header for POSTing, eg.\n");
     fprintf(stderr, "                    'application/x-www-form-urlencoded'\n");
     fprintf(stderr, "                    Default is 'text/plain'\n");
@@ -1858,7 +1880,11 @@ static void usage(const char *progname)
     fprintf(stderr, "    -h              Display usage information (this message)\n");
 #ifdef USE_SSL
     fprintf(stderr, "    -Z ciphersuite  Specify SSL/TLS cipher suite (See openssl ciphers)\n");
+#ifndef OPENSSL_NO_SSL2
     fprintf(stderr, "    -f protocol     Specify SSL/TLS protocol (SSL2, SSL3, TLS1, or ALL)\n");
+#else
+    fprintf(stderr, "    -f protocol     Specify SSL/TLS protocol (SSL3, TLS1, or ALL)\n");
+#endif
 #endif
     exit(EINVAL);
 }
@@ -2022,7 +2048,7 @@ int main(int argc, const char * const argv[])
 #endif
 
     apr_getopt_init(&opt, cntxt, argc, argv);
-    while ((status = apr_getopt(opt, "n:c:t:b:T:p:v:rkVhwix:y:z:C:H:P:A:g:X:de:Sq"
+    while ((status = apr_getopt(opt, "n:c:t:b:T:p:u:v:rkVhwix:y:z:C:H:P:A:g:X:de:Sq"
 #ifdef USE_SSL
             "Z:f:"
 #endif
@@ -2047,8 +2073,8 @@ int main(int argc, const char * const argv[])
                 windowsize = atoi(optarg);
                 break;
             case 'i':
-                if (posting == 1)
-                err("Cannot mix POST and HEAD\n");
+                if (posting > 0)
+                err("Cannot mix POST/PUT and HEAD\n");
                 posting = -1;
                 break;
             case 'g':
@@ -2068,6 +2094,16 @@ int main(int argc, const char * const argv[])
                     err("Cannot mix POST and HEAD\n");
                 if (0 == (r = open_postfile(optarg))) {
                     posting = 1;
+                }
+                else if (postdata) {
+                    exit(r);
+                }
+                break;
+            case 'u':
+                if (posting != 0)
+                    err("Cannot mix PUT and HEAD\n");
+                if (0 == (r = open_postfile(optarg))) {
+                    posting = 2;
                 }
                 else if (postdata) {
                     exit(r);
@@ -2181,8 +2217,10 @@ int main(int argc, const char * const argv[])
             case 'f':
                 if (strncasecmp(optarg, "ALL", 3) == 0) {
                     meth = SSLv23_client_method();
+#ifndef OPENSSL_NO_SSL2
                 } else if (strncasecmp(optarg, "SSL2", 4) == 0) {
                     meth = SSLv2_client_method();
+#endif
                 } else if (strncasecmp(optarg, "SSL3", 4) == 0) {
                     meth = SSLv3_client_method();
                 } else if (strncasecmp(optarg, "TLS1", 4) == 0) {

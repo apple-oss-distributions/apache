@@ -154,7 +154,7 @@ APR_DECLARE(apr_status_t) apr_file_read(apr_file_t *thefile, void *buf, apr_size
      * initialize the overlapped and io completion event (hEvent). 
      * Threads should NOT share an apr_file_t or its hEvent.
      */
-    if ((thefile->flags & APR_XTHREAD) && !thefile->pOverlapped ) {
+    if ((thefile->flags & APR_FOPEN_XTHREAD) && !thefile->pOverlapped ) {
         thefile->pOverlapped = (OVERLAPPED*) apr_pcalloc(thefile->pool, 
                                                          sizeof(OVERLAPPED));
         thefile->pOverlapped->hEvent = CreateEvent(NULL, FALSE, FALSE, NULL);
@@ -245,7 +245,7 @@ APR_DECLARE(apr_status_t) apr_file_write(apr_file_t *thefile, const void *buf, a
      * initialize the overlapped and io completion event (hEvent). 
      * Threads should NOT share an apr_file_t or its hEvent.
      */
-    if ((thefile->flags & APR_XTHREAD) && !thefile->pOverlapped ) {
+    if ((thefile->flags & APR_FOPEN_XTHREAD) && !thefile->pOverlapped ) {
         thefile->pOverlapped = (OVERLAPPED*) apr_pcalloc(thefile->pool, 
                                                          sizeof(OVERLAPPED));
         thefile->pOverlapped->hEvent = CreateEvent(NULL, FALSE, FALSE, NULL);
@@ -263,10 +263,10 @@ APR_DECLARE(apr_status_t) apr_file_write(apr_file_t *thefile, const void *buf, a
         apr_thread_mutex_lock(thefile->mutex);
 
         if (thefile->direction == 0) {
-            // Position file pointer for writing at the offset we are logically reading from
+            /* Position file pointer for writing at the offset we are logically reading from */
             apr_off_t offset = thefile->filePtr - thefile->dataRead + thefile->bufpos;
             DWORD offlo = (DWORD)offset;
-            DWORD offhi = (DWORD)(offset >> 32);
+            LONG  offhi = (LONG)(offset >> 32);
             if (offset != thefile->filePtr)
                 SetFilePointer(thefile->filehand, offlo, &offhi, FILE_BEGIN);
             thefile->bufpos = thefile->dataRead = 0;
@@ -514,6 +514,25 @@ APR_DECLARE(apr_status_t) apr_file_flush(apr_file_t *thefile)
      * so just return success.
      */
     return APR_SUCCESS; 
+}
+
+APR_DECLARE(apr_status_t) apr_file_sync(apr_file_t *thefile){
+    apr_status_t rv;
+
+    rv = apr_file_flush(thefile);
+    if (rv != APR_SUCCESS) {
+        return rv;
+    }
+
+    if (!FlushFileBuffers(thefile->filehand)) {
+        rv = apr_get_os_error();
+    }
+
+    return rv;
+}
+
+APR_DECLARE(apr_status_t) apr_file_datasync(apr_file_t *thefile){
+    return apr_file_sync(thefile);
 }
 
 struct apr_file_printf_data {

@@ -25,7 +25,8 @@
 <a href="./es/sitemap.html" hreflang="es" rel="alternate" title="Español">&nbsp;es&nbsp;</a> |
 <a href="./ja/sitemap.html" title="Japanese">&nbsp;ja&nbsp;</a> |
 <a href="./ko/sitemap.html" hreflang="ko" rel="alternate" title="Korean">&nbsp;ko&nbsp;</a> |
-<a href="./tr/sitemap.html" hreflang="tr" rel="alternate" title="Türkçe">&nbsp;tr&nbsp;</a></p>
+<a href="./tr/sitemap.html" hreflang="tr" rel="alternate" title="Türkçe">&nbsp;tr&nbsp;</a> |
+<a href="./zh-cn/sitemap.html" hreflang="zh-cn" rel="alternate" title="Simplified Chinese">&nbsp;zh-cn&nbsp;</a></p>
 </div>
 <div class="outofdate">This translation may be out of date. Check the
             English version for recent changes.</div>
@@ -221,6 +222,8 @@
 <li><a href="mod/mod_proxy_connect.html">Apache モジュール mod_proxy_connect</a></li>
 <li><a href="mod/mod_proxy_ftp.html">Apache モジュール mod_proxy_ftp</a></li>
 <li><a href="mod/mod_proxy_http.html">Apache モジュール mod_proxy_http</a></li>
+<li><a href="mod/mod_proxy_scgi.html">Apache モジュール mod_proxy_scgi</a></li>
+<li><a href="mod/mod_reqtimeout.html">Apache モジュール mod_reqtimeout</a></li>
 <li><a href="mod/mod_rewrite.html">Apache モジュール mod_rewrite</a></li>
 <li><a href="mod/mod_setenvif.html">Apache モジュール mod_setenvif</a></li>
 <li><a href="mod/mod_so.html">Apache モジュール mod_so</a></li>
@@ -262,8 +265,9 @@
 <a href="./es/sitemap.html" hreflang="es" rel="alternate" title="Español">&nbsp;es&nbsp;</a> |
 <a href="./ja/sitemap.html" title="Japanese">&nbsp;ja&nbsp;</a> |
 <a href="./ko/sitemap.html" hreflang="ko" rel="alternate" title="Korean">&nbsp;ko&nbsp;</a> |
-<a href="./tr/sitemap.html" hreflang="tr" rel="alternate" title="Türkçe">&nbsp;tr&nbsp;</a></p>
+<a href="./tr/sitemap.html" hreflang="tr" rel="alternate" title="Türkçe">&nbsp;tr&nbsp;</a> |
+<a href="./zh-cn/sitemap.html" hreflang="zh-cn" rel="alternate" title="Simplified Chinese">&nbsp;zh-cn&nbsp;</a></p>
 </div><div id="footer">
-<p class="apache">Copyright 2009 The Apache Software Foundation.<br />Licensed under the <a href="http://www.apache.org/licenses/LICENSE-2.0">Apache License, Version 2.0</a>.</p>
+<p class="apache">Copyright 2011 The Apache Software Foundation.<br />Licensed under the <a href="http://www.apache.org/licenses/LICENSE-2.0">Apache License, Version 2.0</a>.</p>
 <p class="menu"><a href="./mod/">モジュール</a> | <a href="./mod/directives.html">ディレクティブ</a> | <a href="./faq/">FAQ</a> | <a href="./glossary.html">用語</a> | <a href="./sitemap.html">サイトマップ</a></p></div>
 </body></html>

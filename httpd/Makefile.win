@@ -142,19 +142,19 @@ _trydb:
 	for %d in (odbc $(DBD_LIST)) do \
 	  $(MAKE) $(MAKEOPT) -f apr_dbd_%d.mak CFG="apr_dbd_%d - Win32 $(LONG)" RECURSE=0 $(CTARGET)
 	cd ..\dbm
-	for %d in ($(DBM_LIST)) do \
+	for %d in ($(DBM_LIST) x) do if not %d == x \
 	  $(MAKE) $(MAKEOPT) -f apr_dbm_%d.mak CFG="apr_dbm_%d - Win32 $(LONG)" RECURSE=0 $(CTARGET)
 	cd ..\..\..
 !ELSEIF $(USESLN) == 1
 	for %d in (odbc $(DBD_LIST)) do \
 	  devenv Apache.sln /useenv $(CTARGET) $(LONG) /project apr_dbd_%d
-	for %d in ($(DBM_LIST)) do \
+	for %d in ($(DBM_LIST) x) do if not %d == x \
 	  devenv Apache.sln /useenv $(CTARGET) $(LONG) /project apr_dbm_%d
 !ELSE
 	@for %d in (odbc $(DBD_LIST)) do \
 	  msdev Apache.dsw /USEENV /MAKE \
 		"apr_dbd_%d - Win32 $(LONG)" /NORECURSE $(CTARGET)
-	@for %d in ($(DBM_LIST)) do \
+	@for %d in ($(DBM_LIST) x) do if not %d == x \
 	  msdev Apache.dsw /USEENV /MAKE \
 		"apr_dbm_%d - Win32 $(LONG)" /NORECURSE $(CTARGET)
 !ENDIF
@@ -274,7 +274,7 @@ _build:
 	    $(MAKE) $(MAKEOPT) -f apr_dbd_%d.mak   CFG="apr_dbd_%d - Win32 $(LONG)" RECURSE=0 $(CTARGET)
 	cd ..
 	cd dbm
-	  for %d in ($(DBM_LIST)) do \
+	  for %d in ($(DBM_LIST) x) do if not %d == x \
 	    $(MAKE) $(MAKEOPT) -f apr_dbm_%d.mak   CFG="apr_dbm_%d - Win32 $(LONG)" RECURSE=0 $(CTARGET)
 	cd ..
 	cd ..\..
@@ -355,6 +355,7 @@ _build:
 	 $(MAKE) $(MAKEOPT) -f mod_ext_filter.mak  CFG="mod_ext_filter - Win32 $(LONG)" RECURSE=0 $(CTARGET)
 	 $(MAKE) $(MAKEOPT) -f mod_filter.mak      CFG="mod_filter - Win32 $(LONG)" RECURSE=0 $(CTARGET)
 	 $(MAKE) $(MAKEOPT) -f mod_include.mak     CFG="mod_include - Win32 $(LONG)" RECURSE=0 $(CTARGET)
+	 $(MAKE) $(MAKEOPT) -f mod_reqtimeout.mak  CFG="mod_reqtimeout - Win32 $(LONG)" RECURSE=0 $(CTARGET)
 	 $(MAKE) $(MAKEOPT) -f mod_substitute.mak  CFG="mod_substitute - Win32 $(LONG)" RECURSE=0 $(CTARGET)
 	cd ..\..
 	cd modules\generators
@@ -402,6 +403,7 @@ _build:
 	 $(MAKE) $(MAKEOPT) -f mod_proxy_connect.mak CFG="mod_proxy_connect - Win32 $(LONG)" RECURSE=0 $(CTARGET)
 	 $(MAKE) $(MAKEOPT) -f mod_proxy_ftp.mak   CFG="mod_proxy_ftp - Win32 $(LONG)" RECURSE=0 $(CTARGET)
 	 $(MAKE) $(MAKEOPT) -f mod_proxy_http.mak  CFG="mod_proxy_http - Win32 $(LONG)" RECURSE=0 $(CTARGET)
+	 $(MAKE) $(MAKEOPT) -f mod_proxy_scgi.mak  CFG="mod_proxy_scgi - Win32 $(LONG)" RECURSE=0 $(CTARGET)
 	cd ..\..
 !IF EXIST("srclib\openssl")
 	cd modules\ssl
@@ -495,7 +497,7 @@ _copybin:
 	for %d in (odbc $(DBD_LIST)) do ( \
 	  copy srclib\apr-util\dbd\$(LONG)\apr_dbd_%d-1.$(src_dll) "$(inst_dll)" <.y \
 	)
-	for %d in ($(DBM_LIST)) do ( \
+	for %d in ($(DBM_LIST) x) do if not %d == x ( \
 	  copy srclib\apr-util\dbm\$(LONG)\apr_dbm_%d-1.$(src_dll) "$(inst_dll)" <.y \
 	)
 	copy modules\aaa\$(LONG)\mod_auth_basic.$(src_so) 	"$(inst_so)" <.y
@@ -542,6 +544,7 @@ _copybin:
 	copy modules\filters\$(LONG)\mod_ext_filter.$(src_so) 	"$(inst_so)" <.y
 	copy modules\filters\$(LONG)\mod_filter.$(src_so) 	"$(inst_so)" <.y
 	copy modules\filters\$(LONG)\mod_include.$(src_so) 	"$(inst_so)" <.y
+	copy modules\filters\$(LONG)\mod_reqtimeout.$(src_so) 	"$(inst_so)" <.y
 	copy modules\filters\$(LONG)\mod_substitute.$(src_so)	"$(inst_so)" <.y
 	copy modules\generators\$(LONG)\mod_asis.$(src_so) 	"$(inst_so)" <.y
 	copy modules\generators\$(LONG)\mod_autoindex.$(src_so) "$(inst_so)" <.y
@@ -578,6 +581,7 @@ _copybin:
 	copy modules\proxy\$(LONG)\mod_proxy_connect.$(src_so) 	"$(inst_so)" <.y
 	copy modules\proxy\$(LONG)\mod_proxy_ftp.$(src_so) 	"$(inst_so)" <.y
 	copy modules\proxy\$(LONG)\mod_proxy_http.$(src_so) 	"$(inst_so)" <.y
+	copy modules\proxy\$(LONG)\mod_proxy_scgi.$(src_so) 	"$(inst_so)" <.y
 !IF EXIST("srclib\openssl")
 	copy modules\ssl\$(LONG)\mod_ssl.$(src_so) 		"$(inst_so)" <.y
 	-copy srclib\openssl\$(SSLBIN)\libeay32.$(src_dll) 	"$(inst_dll)" <.y
@@ -623,10 +627,6 @@ _install:
 	-mkdir "$(INSTDIR)\lib"
 	-mkdir "$(INSTDIR)\logs"
 	-mkdir "$(INSTDIR)\modules"
-	-mkdir "$(INSTDIR)\symbols"
-	-mkdir "$(INSTDIR)\symbols\exe"
-	-mkdir "$(INSTDIR)\symbols\dll"
-	-mkdir "$(INSTDIR)\symbols\so"
 	copy ABOUT_APACHE "$(INSTDIR)\ABOUT_APACHE.txt" <.y
 	copy CHANGES      "$(INSTDIR)\CHANGES.txt" <.y
 	copy INSTALL      "$(INSTDIR)\INSTALL.txt" <.y

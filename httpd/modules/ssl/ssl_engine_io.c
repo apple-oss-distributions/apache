@@ -103,6 +103,7 @@ typedef struct {
     ap_filter_t        *pInputFilter;
     ap_filter_t        *pOutputFilter;
     int                nobuffer; /* non-zero to prevent buffering */
+    SSLConnRec         *config;
 } ssl_filter_ctx_t;
 
 typedef struct {
@@ -193,7 +194,13 @@ static int bio_filter_out_read(BIO *bio, char *out, int outl)
 static int bio_filter_out_write(BIO *bio, const char *in, int inl)
 {
     bio_filter_out_ctx_t *outctx = (bio_filter_out_ctx_t *)(bio->ptr);
-
+    
+    /* Abort early if the client has initiated a renegotiation. */
+    if (outctx->filter_ctx->config->reneg_state == RENEG_ABORT) {
+        outctx->rc = APR_ECONNABORTED;
+        return -1;
+    }
+    
     /* when handshaking we'll have a small number of bytes.
      * max size SSL will pass us here is about 16k.
      * (16413 bytes to be exact)
@@ -337,6 +344,13 @@ typedef struct {
  * this char_buffer api might seem silly, but we don't need to copy
  * any of this data and we need to remember the length.
  */
+
+/* Copy up to INL bytes from the char_buffer BUFFER into IN.  Note
+ * that due to the strange way this API is designed/used, the
+ * char_buffer object is used to cache a segment of inctx->buffer, and
+ * then this function called to copy (part of) that segment to the
+ * beginning of inctx->buffer.  So the segments to copy cannot be
+ * presumed to be non-overlapping, and memmove must be used. */
 static int char_buffer_read(char_buffer_t *buffer, char *in, int inl)
 {
     if (!buffer->length) {
@@ -345,13 +359,13 @@ static int char_buffer_read(char_buffer_t *buffer, char *in, int inl)
 
     if (buffer->length > inl) {
         /* we have have enough to fill the caller's buffer */
-        memcpy(in, buffer->value, inl);
+        memmove(in, buffer->value, inl);
         buffer->value += inl;
         buffer->length -= inl;
     }
     else {
         /* swallow remainder of the buffer */
-        memcpy(in, buffer->value, buffer->length);
+        memmove(in, buffer->value, buffer->length);
         inl = buffer->length;
         buffer->value = NULL;
         buffer->length = 0;
@@ -458,7 +472,6 @@ static int bio_filter_in_read(BIO *bio, char *in, int inlen)
     apr_size_t inl = inlen;
     bio_filter_in_ctx_t *inctx = (bio_filter_in_ctx_t *)(bio->ptr);
     apr_read_type_e block = inctx->block;
-    SSLConnRec *sslconn = myConnConfig(inctx->f->c);
 
     inctx->rc = APR_SUCCESS;
 
@@ -466,17 +479,25 @@ static int bio_filter_in_read(BIO *bio, char *in, int inlen)
     if (!in)
         return 0;
 
-    /* XXX: flush here only required for SSLv2;
-     * OpenSSL calls BIO_flush() at the appropriate times for
-     * the other protocols.
+    /* Abort early if the client has initiated a renegotiation. */
+    if (inctx->filter_ctx->config->reneg_state == RENEG_ABORT) {
+        inctx->rc = APR_ECONNABORTED;
+        return -1;
+    }
+
+    /* In theory, OpenSSL should flush as necessary, but it is known
+     * not to do so correctly in some cases; see PR 46952.
+     *
+     * Historically, this flush call was performed only for an SSLv2
+     * connection or for a proxy connection.  Calling _out_flush
+     * should be very cheap in cases where it is unnecessary (and no
+     * output is buffered) so the performance impact of doing it
+     * unconditionally should be minimal.
      */
-    if ((SSL_version(inctx->ssl) == SSL2_VERSION) || sslconn->is_proxy) {
-        if (bio_filter_out_flush(inctx->bio_out) < 0) {
-            bio_filter_out_ctx_t *outctx =
-                   (bio_filter_out_ctx_t *)(inctx->bio_out->ptr);
-            inctx->rc = outctx->rc;
-            return -1;
-        }
+    if (bio_filter_out_flush(inctx->bio_out) < 0) {
+        bio_filter_out_ctx_t *outctx = inctx->bio_out->ptr;
+        inctx->rc = outctx->rc;
+        return -1;
     }
 
     BIO_clear_retry_flags(bio);
@@ -728,6 +749,10 @@ static apr_status_t ssl_io_input_getline(bio_filter_in_ctx_t *inctx,
         status = ssl_io_input_read(inctx, buf + offset, &tmplen);
 
         if (status != APR_SUCCESS) {
+            if (APR_STATUS_IS_EAGAIN(status) && (*len > 0)) {
+                /* Save the part of the line we already got */
+                char_buffer_write(&inctx->cbuf, buf, *len);
+            }
             return status;
         }
 
@@ -1044,6 +1069,7 @@ static int ssl_io_filter_connect(ssl_filter_ctx_t *filter_ctx)
             ssl_log_ssl_error(APLOG_MARK, APLOG_INFO, server);
             /* ensure that the SSL structures etc are freed, etc: */
             ssl_filter_io_shutdown(filter_ctx, c, 1);
+            apr_table_set(c->notes, "SSL_connect_rv", "err");
             return HTTP_BAD_GATEWAY;
         }
 
@@ -1061,6 +1087,7 @@ static int ssl_io_filter_connect(ssl_filter_ctx_t *filter_ctx)
                 }
                 /* ensure that the SSL structures etc are freed, etc: */
                 ssl_filter_io_shutdown(filter_ctx, c, 1);
+                apr_table_set(c->notes, "SSL_connect_rv", "err");
                 return HTTP_BAD_GATEWAY;
             }
             X509_free(cert);
@@ -1080,10 +1107,12 @@ static int ssl_io_filter_connect(ssl_filter_ctx_t *filter_ctx)
                               hostname, hostname_note);
                 /* ensure that the SSL structures etc are freed, etc: */
                 ssl_filter_io_shutdown(filter_ctx, c, 1);
+                apr_table_set(c->notes, "SSL_connect_rv", "err");
                 return HTTP_BAD_GATEWAY;
             }
         }
 
+        apr_table_set(c->notes, "SSL_connect_rv", "ok");
         return APR_SUCCESS;
     }
 
@@ -1358,9 +1387,17 @@ static apr_status_t ssl_io_filter_input(ap_filter_t *f,
     }
     else {
         /* We have no idea what you are talking about, so return an error. */
-        return APR_ENOTIMPL;
+        status = APR_ENOTIMPL;
     }
 
+    /* It is possible for mod_ssl's BIO to be used outside of the
+     * direct control of mod_ssl's input or output filter -- notably,
+     * when mod_ssl initiates a renegotiation.  Switching the BIO mode
+     * back to "blocking" here ensures such operations don't fail with
+     * SSL_ERROR_WANT_READ. */
+    inctx->block = APR_BLOCK_READ;
+
+    /* Handle custom errors. */
     if (status != APR_SUCCESS) {
         return ssl_io_filter_error(f, bb, status);
     }
@@ -1665,7 +1702,7 @@ static apr_status_t ssl_io_filter_buffer(ap_filter_t *f,
     }
     else {
         /* Split a line into the passed-in brigade. */
-        rv = apr_brigade_split_line(bb, ctx->bb, mode, bytes);
+        rv = apr_brigade_split_line(bb, ctx->bb, block, bytes);
 
         if (rv) {
             ap_log_cerror(APLOG_MARK, APLOG_ERR, rv, f->c,
@@ -1723,6 +1760,8 @@ void ssl_io_filter_init(conn_rec *c, SSL *ssl)
     ssl_filter_ctx_t *filter_ctx;
 
     filter_ctx = apr_palloc(c->pool, sizeof(ssl_filter_ctx_t));
+
+    filter_ctx->config          = myConnConfig(c);
 
     filter_ctx->nobuffer        = 0;
     filter_ctx->pOutputFilter   = ap_add_output_filter(ssl_io_filter,

@@ -218,7 +218,11 @@ typedef int ssl_opt_t;
 #define SSL_PROTOCOL_SSLV2 (1<<0)
 #define SSL_PROTOCOL_SSLV3 (1<<1)
 #define SSL_PROTOCOL_TLSV1 (1<<2)
+#ifndef OPENSSL_NO_SSL2
 #define SSL_PROTOCOL_ALL   (SSL_PROTOCOL_SSLV2|SSL_PROTOCOL_SSLV3|SSL_PROTOCOL_TLSV1)
+#else
+#define SSL_PROTOCOL_ALL   (SSL_PROTOCOL_SSLV3|SSL_PROTOCOL_TLSV1)
+#endif
 typedef int ssl_proto_t;
 
 /**
@@ -356,6 +360,20 @@ typedef struct {
     int is_proxy;
     int disabled;
     int non_ssl_request;
+
+    /* Track the handshake/renegotiation state for the connection so
+     * that all client-initiated renegotiations can be rejected, as a
+     * partial fix for CVE-2009-3555. */
+    enum { 
+        RENEG_INIT = 0, /* Before initial handshake */
+        RENEG_REJECT, /* After initial handshake; any client-initiated
+                       * renegotiation should be rejected */
+        RENEG_ALLOW, /* A server-initated renegotiation is taking
+                      * place (as dictated by configuration) */
+        RENEG_ABORT /* Renegotiation initiated by client, abort the
+                     * connection */
+    } reneg_state;
+    
     server_rec *server;
 } SSLConnRec;
 
@@ -457,12 +475,16 @@ struct SSLSrvConfigRec {
     int              vhost_id_len;
     int              session_cache_timeout;
     BOOL             cipher_server_pref;
+    BOOL             insecure_reneg;
     modssl_ctx_t    *server;
     modssl_ctx_t    *proxy;
     ssl_enabled_t    proxy_ssl_check_peer_expire;
     ssl_enabled_t    proxy_ssl_check_peer_cn;
 #ifndef OPENSSL_NO_TLSEXT
     ssl_enabled_t    strict_sni_vhost_check;
+#endif
+#ifdef HAVE_FIPS
+    BOOL             fips;
 #endif
 };
 
@@ -531,6 +553,7 @@ const char  *ssl_cmd_SSLRequire(cmd_parms *, void *, const char *);
 const char  *ssl_cmd_SSLUserName(cmd_parms *, void *, const char *);
 const char  *ssl_cmd_SSLRenegBufferSize(cmd_parms *cmd, void *dcfg, const char *arg);
 const char  *ssl_cmd_SSLStrictSNIVHostCheck(cmd_parms *cmd, void *dcfg, int flag);
+const char *ssl_cmd_SSLInsecureRenegotiation(cmd_parms *cmd, void *dcfg, int flag);
 
 const char  *ssl_cmd_SSLProxyEngine(cmd_parms *cmd, void *dcfg, int flag);
 const char  *ssl_cmd_SSLProxyProtocol(cmd_parms *, void *, const char *);
@@ -545,6 +568,8 @@ const char  *ssl_cmd_SSLProxyMachineCertificatePath(cmd_parms *, void *, const c
 const char  *ssl_cmd_SSLProxyMachineCertificateFile(cmd_parms *, void *, const char *);
 const char  *ssl_cmd_SSLProxyCheckPeerExpire(cmd_parms *cmd, void *dcfg, int flag);
 const char  *ssl_cmd_SSLProxyCheckPeerCN(cmd_parms *cmd, void *dcfg, int flag);
+
+const char *ssl_cmd_SSLFIPS(cmd_parms *cmd, void *dcfg, int flag);
 
 /**  module initialization  */
 int          ssl_init_Module(apr_pool_t *, apr_pool_t *, apr_pool_t *, server_rec *);
@@ -574,7 +599,7 @@ int          ssl_callback_proxy_cert(SSL *ssl, MODSSL_CLIENT_CERT_CB_ARG_TYPE **
 int          ssl_callback_NewSessionCacheEntry(SSL *, SSL_SESSION *);
 SSL_SESSION *ssl_callback_GetSessionCacheEntry(SSL *, unsigned char *, int, int *);
 void         ssl_callback_DelSessionCacheEntry(SSL_CTX *, SSL_SESSION *);
-void         ssl_callback_LogTracingState(MODSSL_INFO_CB_ARG_TYPE, int, int);
+void         ssl_callback_Info(MODSSL_INFO_CB_ARG_TYPE, int, int);
 #ifndef OPENSSL_NO_TLSEXT
 int          ssl_callback_ServerNameIndication(SSL *, int *, modssl_ctx_t *);
 #endif
@@ -680,6 +705,10 @@ const char  *ssl_ext_lookup(apr_pool_t *p, conn_rec *c, int peer, const char *oi
 extern apr_array_header_t *ssl_extlist_by_oid(request_rec *r, const char *oidstr);
 
 void         ssl_var_log_config_register(apr_pool_t *p);
+
+/* Extract SSL_*_DN_* variables into table 't' from SSL object 'ssl',
+ * allocating from 'p': */
+void modssl_var_extract_dns(apr_table_t *t, SSL *ssl, apr_pool_t *p);
 
 #define APR_SHM_MAXSIZE (64 * 1024 * 1024)
 

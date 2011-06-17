@@ -63,6 +63,7 @@ typedef struct {
     deref_options deref;            /* how to handle alias dereferening */
     char *binddn;                   /* DN to bind to server (can be NULL) */
     char *bindpw;                   /* Password to bind to server (can be NULL) */
+    int bind_authoritative;         /* If true, will return errors when bind fails */
 
     int user_is_dn;                 /* If true, connection->user is DN instead of userid */
     char *remote_user_attribute;    /* If set, connection->user is this attribute instead of userid */
@@ -150,6 +151,29 @@ static apr_xlate_t* get_conv_set (request_rec *r)
     }
 
     return NULL;
+}
+
+
+static const char* authn_ldap_xlate_password(request_rec *r,
+                                             const char* sent_password)
+{
+    apr_xlate_t *convset = NULL;
+    apr_size_t inbytes;
+    apr_size_t outbytes;
+    char *outbuf;
+
+    if (charset_conversions && (convset = get_conv_set(r)) ) {
+        inbytes = strlen(sent_password);
+        outbytes = (inbytes+1)*3;
+        outbuf = apr_pcalloc(r->pool, outbytes);
+
+        /* Convert the password to UTF-8. */
+        if (apr_xlate_conv_buffer(convset, sent_password, &inbytes, outbuf,
+                                  &outbytes) == APR_SUCCESS)
+            return outbuf;
+    }
+
+    return sent_password;
 }
 
 
@@ -294,6 +318,7 @@ static void *create_authnz_ldap_dir_config(apr_pool_t *p, char *d)
     sec->host = NULL;
     sec->binddn = NULL;
     sec->bindpw = NULL;
+    sec->bind_authoritative = 1;
     sec->deref = always;
     sec->group_attrib_is_dn = 1;
     sec->auth_authoritative = 1;
@@ -342,6 +367,7 @@ static authn_status authn_ldap_check_password(request_rec *r, const char *user,
     int result = 0;
     int remote_user_attribute_set = 0;
     const char *dn = NULL;
+    const char *utfpassword;
 
     authn_ldap_request_t *req =
         (authn_ldap_request_t *)apr_pcalloc(r->pool, sizeof(authn_ldap_request_t));
@@ -395,9 +421,13 @@ start_over:
     /* build the username filter */
     authn_ldap_build_filter(filtbuf, r, user, NULL, sec);
 
+    /* convert password to utf-8 */
+    utfpassword = authn_ldap_xlate_password(r, password);
+
     /* do the user search */
     result = util_ldap_cache_checkuserid(r, ldc, sec->url, sec->basedn, sec->scope,
-                                         sec->attributes, filtbuf, password, &dn, &vals);
+                                         sec->attributes, filtbuf, utfpassword,
+                                         &dn, &vals);
     util_ldap_connection_close(ldc);
 
     /* sanity check - if server is down, retry it up to 5 times */
@@ -409,7 +439,15 @@ start_over:
 
     /* handle bind failure */
     if (result != LDAP_SUCCESS) {
-        ap_log_rerror(APLOG_MARK, APLOG_WARNING, 0, r,
+        if (!sec->bind_authoritative) {
+           ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
+                      "[%" APR_PID_T_FMT "] auth_ldap authenticate: "
+                      "user %s authentication failed; URI %s [%s][%s] (not authoritative)",
+                      getpid(), user, r->uri, ldc->reason, ldap_err2string(result));
+           return AUTH_USER_NOT_FOUND;
+        }
+
+        ap_log_rerror(APLOG_MARK, APLOG_INFO, 0, r,
                       "[%" APR_PID_T_FMT "] auth_ldap authenticate: "
                       "user %s authentication failed; URI %s [%s][%s]",
                       getpid(), user, r->uri, ldc->reason, ldap_err2string(result));
@@ -527,6 +565,29 @@ static int authz_ldap_check_user_access(request_rec *r)
         return DECLINED;
     }
 
+    /* pre-scan for ldap-* requirements so we can get out of the way early */
+    for(x=0; x < reqs_arr->nelts; x++) {
+        if (! (reqs[x].method_mask & (AP_METHOD_BIT << m))) {
+            continue;
+        }
+
+        t = reqs[x].requirement;
+        w = ap_getword_white(r->pool, &t);
+
+        if (strncmp(w, "ldap-",5) == 0) {
+            required_ldap = 1;
+            break;
+        }
+    }
+
+    if (!required_ldap) {
+        ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
+                      "[%" APR_PID_T_FMT "] auth_ldap authorise: declining to authorise (no ldap requirements)", getpid());
+        return DECLINED;
+    }
+
+
+
     if (sec->host) {
         ldc = util_ldap_connection_find(r, sec->host, sec->port,
                                        sec->binddn, sec->bindpw, sec->deref,
@@ -557,12 +618,6 @@ static int authz_ldap_check_user_access(request_rec *r)
 #if APR_HAS_THREADS
         apr_thread_mutex_unlock(sec->lock);
 #endif
-    }
-
-    if (!reqs_arr) {
-        ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
-                      "[%" APR_PID_T_FMT "] auth_ldap authorise: no requirements array", getpid());
-        return sec->auth_authoritative? HTTP_UNAUTHORIZED : DECLINED;
     }
 
     /*
@@ -615,7 +670,6 @@ static int authz_ldap_check_user_access(request_rec *r)
         w = ap_getword_white(r->pool, &t);
 
         if (strcmp(w, "ldap-user") == 0) {
-            required_ldap = 1;
             if (req->dn == NULL || strlen(req->dn) == 0) {
                 ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
                               "[%" APR_PID_T_FMT "] auth_ldap authorise: "
@@ -665,7 +719,6 @@ static int authz_ldap_check_user_access(request_rec *r)
             }
         }
         else if (strcmp(w, "ldap-dn") == 0) {
-            required_ldap = 1;
             if (req->dn == NULL || strlen(req->dn) == 0) {
                 ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
                               "[%" APR_PID_T_FMT "] auth_ldap authorise: "
@@ -693,7 +746,6 @@ static int authz_ldap_check_user_access(request_rec *r)
         else if (strcmp(w, "ldap-group") == 0) {
             struct mod_auth_ldap_groupattr_entry_t *ent = (struct mod_auth_ldap_groupattr_entry_t *) sec->groupattr->elts;
             int i;
-            required_ldap = 1;
 
             if (sec->group_attrib_is_dn) {
                 if (req->dn == NULL || strlen(req->dn) == 0) {
@@ -743,7 +795,6 @@ static int authz_ldap_check_user_access(request_rec *r)
             }
         }
         else if (strcmp(w, "ldap-attribute") == 0) {
-            required_ldap = 1;
             if (req->dn == NULL || strlen(req->dn) == 0) {
                 ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
                               "[%" APR_PID_T_FMT "] auth_ldap authorise: "
@@ -779,7 +830,6 @@ static int authz_ldap_check_user_access(request_rec *r)
             }
         }
         else if (strcmp(w, "ldap-filter") == 0) {
-            required_ldap = 1;
             if (req->dn == NULL || strlen(req->dn) == 0) {
                 ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
                               "[%" APR_PID_T_FMT "] auth_ldap authorise: "
@@ -843,9 +893,9 @@ static int authz_ldap_check_user_access(request_rec *r)
         return OK;
     }
 
-    if (!required_ldap || !sec->auth_authoritative) {
+    if (!sec->auth_authoritative) {
         ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
-                      "[%" APR_PID_T_FMT "] auth_ldap authorise: declining to authorise", getpid());
+                      "[%" APR_PID_T_FMT "] auth_ldap authorise: declining to authorise (not authoritative)", getpid());
         return DECLINED;
     }
 
@@ -1052,6 +1102,10 @@ static const command_rec authnz_ldap_cmds[] =
     AP_INIT_TAKE1("AuthLDAPBindPassword", ap_set_string_slot,
                   (void *)APR_OFFSETOF(authn_ldap_config_t, bindpw), OR_AUTHCFG,
                   "Password to use to bind to LDAP server. If not provided, will do an anonymous bind."),
+
+    AP_INIT_FLAG("AuthLDAPBindAuthoritative", ap_set_flag_slot,
+                  (void *)APR_OFFSETOF(authn_ldap_config_t, bind_authoritative), OR_AUTHCFG,
+                  "Set to 'on' to return failures when user-specific bind fails - defaults to on."),
 
     AP_INIT_FLAG("AuthLDAPRemoteUserIsDN", ap_set_flag_slot,
                  (void *)APR_OFFSETOF(authn_ldap_config_t, user_is_dn), OR_AUTHCFG,

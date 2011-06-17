@@ -169,10 +169,14 @@ static SSLSrvConfigRec *ssl_config_server_new(apr_pool_t *p)
     sc->vhost_id_len           = 0;     /* set during module init */
     sc->session_cache_timeout  = UNSET;
     sc->cipher_server_pref     = UNSET;
+    sc->insecure_reneg         = UNSET;
     sc->proxy_ssl_check_peer_expire = SSL_ENABLED_UNSET;
     sc->proxy_ssl_check_peer_cn     = SSL_ENABLED_UNSET;
 #ifndef OPENSSL_NO_TLSEXT
     sc->strict_sni_vhost_check = SSL_ENABLED_UNSET;
+#endif
+#ifdef HAVE_FIPS
+    sc->fips                   = UNSET;
 #endif
 
     modssl_ctx_init_proxy(sc, p);
@@ -262,10 +266,14 @@ void *ssl_config_server_merge(apr_pool_t *p, void *basev, void *addv)
     cfgMergeBool(proxy_enabled);
     cfgMergeInt(session_cache_timeout);
     cfgMergeBool(cipher_server_pref);
+    cfgMergeBool(insecure_reneg);
     cfgMerge(proxy_ssl_check_peer_expire, SSL_ENABLED_UNSET);
     cfgMerge(proxy_ssl_check_peer_cn, SSL_ENABLED_UNSET);
 #ifndef OPENSSL_NO_TLSEXT
     cfgMerge(strict_sni_vhost_check, SSL_ENABLED_UNSET);
+#endif
+#ifdef HAVE_FIPS
+    cfgMergeBool(fips);
 #endif
 
     modssl_ctx_cfg_merge_proxy(base->proxy, add->proxy, mrg->proxy);
@@ -633,6 +641,29 @@ const char *ssl_cmd_SSLEngine(cmd_parms *cmd, void *dcfg, const char *arg)
     return "Argument must be On, Off, or Optional";
 }
 
+const char *ssl_cmd_SSLFIPS(cmd_parms *cmd, void *dcfg, int flag)
+{
+#ifdef HAVE_FIPS
+    SSLSrvConfigRec *sc = mySrvConfig(cmd->server);
+#endif
+    const char *err;
+
+    if ((err = ap_check_cmd_context(cmd, GLOBAL_ONLY))) {
+        return err;
+    }
+
+#ifdef HAVE_FIPS
+    if ((sc->fips != UNSET) && (sc->fips != (BOOL)(flag ? TRUE : FALSE)))
+        return "Conflicting SSLFIPS options, cannot be both On and Off";
+    sc->fips = flag ? TRUE : FALSE;
+#else
+    if (flag)
+        return "SSLFIPS invalid, rebuild httpd and openssl compiled for FIPS";
+#endif
+
+    return NULL;
+}
+
 const char *ssl_cmd_SSLCipherSuite(cmd_parms *cmd,
                                    void *dcfg,
                                    const char *arg)
@@ -687,6 +718,19 @@ const char *ssl_cmd_SSLHonorCipherOrder(cmd_parms *cmd, void *dcfg, int flag)
     return "SSLHonorCiperOrder unsupported; not implemented by the SSL library";
 #endif
 }
+
+const char *ssl_cmd_SSLInsecureRenegotiation(cmd_parms *cmd, void *dcfg, int flag)
+{
+#ifdef SSL_OP_ALLOW_UNSAFE_LEGACY_RENEGOTIATION
+    SSLSrvConfigRec *sc = mySrvConfig(cmd->server);
+    sc->insecure_reneg = flag?TRUE:FALSE;
+    return NULL;
+#else
+    return "The SSLInsecureRenegotiation directive is not available "
+        "with this SSL library";
+#endif
+}
+
 
 static const char *ssl_cmd_check_dir(cmd_parms *parms,
                                      const char **dir)
@@ -1229,6 +1273,11 @@ static const char *ssl_cmd_protocol_parse(cmd_parms *parms,
         }
 
         if (strcEQ(w, "SSLv2")) {
+#ifdef OPENSSL_NO_SSL2
+            if (action != '-') {
+                return "SSLv2 not supported by this version of OpenSSL";
+            }
+#endif
             thisopt = SSL_PROTOCOL_SSLV2;
         }
         else if (strcEQ(w, "SSLv3")) {

@@ -404,7 +404,7 @@
         değeri <code>5</code> saniye olup bu etkiyi en aza indirmeye yönelik
         süredir. Burada ağ band genişliği ile sunucu kaynaklarının kullanımı
         arasında bir seçim yapmak söz konusudur. Hiçbir şey umurunuzda
-        değilse <a href="http://www.research.digital.com/wrl/techreports/abstracts/95.4.html">
+        değilse <a href="http://www.hpl.hp.com/techreports/Compaq-DEC/WRL-95-4.html">
         çoğu ayrıcalığın yitirilmesi pahasına</a> bu değeri rahatça
         <code>60</code> saniyenin üzerine çıkarabilirsiniz.</p>
 
@@ -1095,6 +1095,6 @@
 <a href="../ko/misc/perf-tuning.html" hreflang="ko" rel="alternate" title="Korean">&nbsp;ko&nbsp;</a> |
 <a href="../tr/misc/perf-tuning.html" title="Türkçe">&nbsp;tr&nbsp;</a></p>
 </div><div id="footer">
-<p class="apache">Copyright 2009 The Apache Software Foundation.<br /><a href="http://www.apache.org/licenses/LICENSE-2.0">Apache License, Version 2.0</a> altında lisanslıdır.</p>
+<p class="apache">Copyright 2011 The Apache Software Foundation.<br /><a href="http://www.apache.org/licenses/LICENSE-2.0">Apache License, Version 2.0</a> altında lisanslıdır.</p>
 <p class="menu"><a href="../mod/">Modüller</a> | <a href="../mod/directives.html">Yönergeler</a> | <a href="../faq/">SSS</a> | <a href="../glossary.html">Terimler</a> | <a href="../sitemap.html">Site Haritası</a></p></div>
 </body></html>
