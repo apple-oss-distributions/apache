@@ -52,6 +52,9 @@ Listen @@Port@@
 # LoadModule foo_module modules/mod_foo.so
 #
 @@LoadModule@@
+#LoadModule perl_module libexec/apache2/mod_perl.so
+#LoadModule php5_module libexec/apache2/libphp5.so
+#LoadModule hfs_apple_module libexec/apache2/mod_hfs_apple.so
 
 <IfModule !mpm_netware_module>
 <IfModule !mpm_winnt_module>
@@ -362,6 +365,13 @@ DefaultType text/plain
 #ErrorDocument 404 "/cgi-bin/missing_handler.pl"
 #ErrorDocument 402 http://www.example.com/subscription_info.html
 #
+
+#
+# MaxRanges: Maximum number of Ranges in a request before
+# returning the entire resource, or one of the special
+# values 'default', 'none' or 'unlimited'.
+# Default setting is to accept 200 Ranges.
+#MaxRanges unlimited
 
 #
 # EnableMMAP and EnableSendfile: On systems that support it, 

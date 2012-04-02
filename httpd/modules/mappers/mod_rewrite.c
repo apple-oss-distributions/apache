@@ -2978,7 +2978,7 @@ static const char *cmd_rewritemap(cmd_parms *cmd, void *dconf, const char *a1,
         newmap->cachename = NULL;
         newmap->func      = (char *(*)(request_rec *,char *))
                             apr_hash_get(mapfunc_hash, a2+4, strlen(a2+4));
-        if ((sconf->state == ENGINE_ENABLED) && (newmap->func == NULL)) {
+        if (newmap->func == NULL) {
             return apr_pstrcat(cmd->pool, "RewriteMap: internal map not found:",
                                a2+4, NULL);
         }
@@ -2999,7 +2999,7 @@ static const char *cmd_rewritemap(cmd_parms *cmd, void *dconf, const char *a1,
     newmap->fpin  = NULL;
     newmap->fpout = NULL;
 
-    if (newmap->checkfile && (sconf->state == ENGINE_ENABLED)
+    if (newmap->checkfile
         && (apr_stat(&st, newmap->checkfile, APR_FINFO_MIN,
                      cmd->pool) != APR_SUCCESS)) {
         return apr_pstrcat(cmd->pool,
@@ -4263,6 +4263,11 @@ static int hook_uri2file(request_rec *r)
      *  just stop operating now.
      */
     if (conf->server != r->server) {
+        return DECLINED;
+    }
+
+    if ((r->unparsed_uri[0] == '*' && r->unparsed_uri[1] == '\0')
+        || !r->uri || r->uri[0] != '/') {
         return DECLINED;
     }
 

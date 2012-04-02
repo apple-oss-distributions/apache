@@ -75,6 +75,7 @@ available</td></tr>
 <li><img alt="" src="../images/down.gif" /> <a href="#locationmatch">&lt;LocationMatch&gt;</a></li>
 <li><img alt="" src="../images/down.gif" /> <a href="#loglevel">LogLevel</a></li>
 <li><img alt="" src="../images/down.gif" /> <a href="#maxkeepaliverequests">MaxKeepAliveRequests</a></li>
+<li><img alt="" src="../images/down.gif" /> <a href="#maxranges">MaxRanges</a></li>
 <li><img alt="" src="../images/down.gif" /> <a href="#namevirtualhost">NameVirtualHost</a></li>
 <li><img alt="" src="../images/down.gif" /> <a href="#options">Options</a></li>
 <li><img alt="" src="../images/down.gif" /> <a href="#protocol">Protocol</a></li>
@@ -506,7 +507,16 @@ NoDecode option available in 2.2.18 and later.</td></tr>
       features (<code class="directive"><a href="#options">Options</a></code> and
       <code class="directive"><a href="../mod/mod_include.html#xbithack">XBitHack</a></code>).
       An equal sign may be given followed by a comma (but no spaces)
-      separated lists of options that may be set using the <code class="directive"><a href="#options">Options</a></code> command.</dd>
+      separated lists of options that may be set using the <code class="directive"><a href="#options">Options</a></code> command.
+
+      <div class="note"><h3>Implicit disabling of Options</h3>
+      <p>Even though the list of options that may be used in .htaccess files 
+         can be limited with this directive, as long as any <code class="directive"><a href="#options">Options</a></code> directive is allowed any
+         other inherited option can be disabled by using the non-relative
+         syntax.  In other words, this mechanism cannot force a specific option
+         to remain <em>set</em> while allowing any others to be set.
+      </p></div>
+      </dd>
     </dl>
 
     <p>Example:</p>
@@ -1909,7 +1919,7 @@ client</td></tr>
     that will be allowed in an HTTP request header.</p>
 
     <p>The <code class="directive">LimitRequestFieldSize</code> directive
-    allows the server administrator to reduce or increase the limit
+    allows the server administrator to set the limit
     on the allowed size of an HTTP request header field. A server
     needs this value to be large enough to hold any one header field
     from a normal client request. The size of a normal request header
@@ -1929,7 +1939,8 @@ client</td></tr>
     </code></p></div>
 
     <div class="note">Under normal conditions, the value should not be changed from
-    the default.</div>
+    the default. Also, you can't set this higher than 8190 without
+    modifying the source code and rebuilding.</div>
 
     <div class="warning"><h3>Warning</h3>
     <p> When name-based virtual hosting is used, the value for this
@@ -1954,7 +1965,7 @@ from the client</td></tr>
     allowed on the HTTP request-line.</p>
 
     <p>The <code class="directive">LimitRequestLine</code> directive allows
-    the server administrator to reduce or increase the limit on the allowed size
+    the server administrator to set the limit on the allowed size
     of a client's HTTP request-line. Since the request-line consists of the
     HTTP method, URI, and protocol version, the
     <code class="directive">LimitRequestLine</code> directive places a
@@ -1974,7 +1985,8 @@ from the client</td></tr>
     </code></p></div>
 
     <div class="note">Under normal conditions, the value should not be changed from
-    the default.</div>
+    the default. Also, you can't set this higher than 8190 without
+    modifying the source and rebuilding.</div>
 
     <div class="warning"><h3>Warning</h3>
     <p> When name-based virtual hosting is used, the value for this
@@ -2307,6 +2319,40 @@ connection</td></tr>
 
 </div>
 <div class="top"><a href="#page-header"><img alt="top" src="../images/up.gif" /></a></div>
+<div class="directive-section"><h2><a name="MaxRanges" id="MaxRanges">MaxRanges</a> <a name="maxranges" id="maxranges">Directive</a></h2>
+<table class="directive">
+<tr><th><a href="directive-dict.html#Description">Description:</a></th><td>Number of ranges allowed before returning the complete
+resource </td></tr>
+<tr><th><a href="directive-dict.html#Syntax">Syntax:</a></th><td><code>MaxRanges default | unlimited | none | <var>number-of-ranges</var></code></td></tr>
+<tr><th><a href="directive-dict.html#Default">Default:</a></th><td><code>MaxRanges 200</code></td></tr>
+<tr><th><a href="directive-dict.html#Context">Context:</a></th><td>server config, virtual host, directory</td></tr>
+<tr><th><a href="directive-dict.html#Status">Status:</a></th><td>Core</td></tr>
+<tr><th><a href="directive-dict.html#Module">Module:</a></th><td>core</td></tr>
+<tr><th><a href="directive-dict.html#Compatibility">Compatibility:</a></th><td>Available in Apache HTTP Server 2.2.21 and later</td></tr>
+</table>
+    <p>The <code class="directive">MaxRanges</code> directive
+    limits the number of HTTP ranges the server is willing to 
+    return to the client.  If more ranges then permitted are requested, 
+    the complete resource is returned instead.</p>
+
+    <dl>  
+      <dt><strong>default</strong></dt>
+      <dd>Limits the number of ranges to a compile-time default of 200.</dd>
+   
+      <dt><strong>none</strong></dt>
+      <dd>Range headers are ignored.</dd>
+          
+      <dt><strong>unlimited</strong></dt>
+      <dd>The server does not limit the number of ranges it is
+          willing to satisfy.</dd>
+
+      <dt><var>number-of-ranges</var></dt>
+      <dd>A positive number representing the maximum number of ranges the
+      server is willing to satisfy.</dd>
+    </dl>
+
+</div>
+<div class="top"><a href="#page-header"><img alt="top" src="../images/up.gif" /></a></div>
 <div class="directive-section"><h2><a name="NameVirtualHost" id="NameVirtualHost">NameVirtualHost</a> <a name="namevirtualhost" id="namevirtualhost">Directive</a></h2>
 <table class="directive">
 <tr><th><a href="directive-dict.html#Description">Description:</a></th><td>Designates an IP address for name-virtual
@@ -2320,10 +2366,10 @@ hosting</td></tr>
     required directive if you want to configure <a href="../vhosts/">name-based virtual hosts</a>.</p>
 
     <p>Although <var>addr</var> can be hostname it is recommended
-    that you always use an IP address, e.g.</p>
+    that you always use an IP address and a port, e.g.</p>
 
     <div class="example"><p><code>
-      NameVirtualHost 111.22.33.44
+      NameVirtualHost 111.22.33.44:80
     </code></p></div>
 
     <p>With the <code class="directive">NameVirtualHost</code> directive you
@@ -2374,8 +2420,8 @@ hosting</td></tr>
       exactly match the argument to the <code class="directive">NameVirtualHost</code> directive.</p>
 
       <div class="example"><p><code>
-        NameVirtualHost 1.2.3.4<br />
-        &lt;VirtualHost 1.2.3.4&gt;<br />
+        NameVirtualHost 1.2.3.4:80<br />
+        &lt;VirtualHost 1.2.3.4:80&gt;<br />
         # ...<br />
         &lt;/VirtualHost&gt;<br />
       </code></p></div>
@@ -3361,7 +3407,7 @@ certain events before failing a request</td></tr>
 requests</td></tr>
 <tr><th><a href="directive-dict.html#Syntax">Syntax:</a></th><td><code>TraceEnable <var>[on|off|extended]</var></code></td></tr>
 <tr><th><a href="directive-dict.html#Default">Default:</a></th><td><code>TraceEnable on</code></td></tr>
-<tr><th><a href="directive-dict.html#Context">Context:</a></th><td>server config</td></tr>
+<tr><th><a href="directive-dict.html#Context">Context:</a></th><td>server config, virtual host</td></tr>
 <tr><th><a href="directive-dict.html#Status">Status:</a></th><td>Core</td></tr>
 <tr><th><a href="directive-dict.html#Module">Module:</a></th><td>core</td></tr>
 <tr><th><a href="directive-dict.html#Compatibility">Compatibility:</a></th><td>Available in Apache 1.3.34, 2.0.55 and later</td></tr>
@@ -3531,7 +3577,7 @@ hostname or IP address</td></tr>
     </ul>
 
     <div class="example"><h3>Example</h3><p><code>
-      &lt;VirtualHost 10.1.2.3&gt;<br />
+      &lt;VirtualHost 10.1.2.3:80&gt;<br />
       <span class="indent">
         ServerAdmin webmaster@host.example.com<br />
         DocumentRoot /www/docs/host.example.com<br />
@@ -3548,7 +3594,7 @@ hostname or IP address</td></tr>
     IPv6 example is shown below:</p>
 
     <div class="example"><p><code>
-      &lt;VirtualHost [2001:db8::a00:20ff:fea7:ccea]&gt;<br />
+      &lt;VirtualHost [2001:db8::a00:20ff:fea7:ccea]:80&gt;<br />
       <span class="indent">
         ServerAdmin webmaster@host.example.com<br />
         DocumentRoot /www/docs/host.example.com<br />
@@ -3625,6 +3671,6 @@ hostname or IP address</td></tr>
 <a href="../ja/mod/core.html" hreflang="ja" rel="alternate" title="Japanese">&nbsp;ja&nbsp;</a> |
 <a href="../tr/mod/core.html" hreflang="tr" rel="alternate" title="Türkçe">&nbsp;tr&nbsp;</a></p>
 </div><div id="footer">
-<p class="apache">Copyright 2011 The Apache Software Foundation.<br />Licensed under the <a href="http://www.apache.org/licenses/LICENSE-2.0">Apache License, Version 2.0</a>.</p>
+<p class="apache">Copyright 2012 The Apache Software Foundation.<br />Licensed under the <a href="http://www.apache.org/licenses/LICENSE-2.0">Apache License, Version 2.0</a>.</p>
 <p class="menu"><a href="../mod/">Modules</a> | <a href="../mod/directives.html">Directives</a> | <a href="../faq/">FAQ</a> | <a href="../glossary.html">Glossary</a> | <a href="../sitemap.html">Sitemap</a></p></div>
 </body></html>

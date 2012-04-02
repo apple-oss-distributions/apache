@@ -75,6 +75,7 @@ en toutes circonstances</td></tr>
 <li><img alt="" src="../images/down.gif" /> <a href="#locationmatch">&lt;LocationMatch&gt;</a></li>
 <li><img alt="" src="../images/down.gif" /> <a href="#loglevel">LogLevel</a></li>
 <li><img alt="" src="../images/down.gif" /> <a href="#maxkeepaliverequests">MaxKeepAliveRequests</a></li>
+<li><img alt="" src="../images/down.gif" /> <a href="#maxranges">MaxRanges</a></li>
 <li><img alt="" src="../images/down.gif" /> <a href="#namevirtualhost">NameVirtualHost</a></li>
 <li><img alt="" src="../images/down.gif" /> <a href="#options">Options</a></li>
 <li><img alt="" src="../images/down.gif" /> <a href="#protocol">Protocol</a></li>
@@ -532,7 +533,19 @@ ultérieures. L'option NoDecode est disponible depuis la version
       spécifiques d'un répertoire (<code class="directive"><a href="#options">Options</a></code> et <code class="directive"><a href="../mod/mod_include.html#xbithack">XBitHack</a></code>). "Options" doit être
       suivi d'un signe "égal", puis d'une liste d'options séparées par des
       virgules (pas d'espaces) ; ces options doivent être définies à
-      l'aide de la commande <code class="directive"><a href="#options">Options</a></code>.</dd>
+      l'aide de la commande <code class="directive"><a href="#options">Options</a></code>.
+      
+      <div class="note"><h3>Désactivation implicite des options</h3>
+      <p>Bien que la liste des options disponibles dans les fichiers
+      .htaccess puisse être limitée par cette directive, tant qu'un
+      directive <code class="directive"><a href="#options">Options</a></code> est
+      autorisée, toute autre option héritée peut être désactivée en
+      utilisant la syntaxe non-relative. En d'autres termes, ce
+      mécanisme ne peut pas forcer une option spécifique à rester
+      <em>activée</em> tout en permettant à toute autre option d'être
+      activée.
+      </p></div>
+      </dd>
     </dl>
 
     <p>Exemple :</p>
@@ -2064,7 +2077,7 @@ requête HTTP</td></tr>
     d'<var>octets</var> autorisés dans un en-tête de requête HTTP.</p>
 
     <p>La directive <code class="directive">LimitRequestFieldSize</code> permet
-    à l'administrateur du serveur de réduire ou augmenter la taille
+    à l'administrateur du serveur de définir la taille
     maximale autorisée d'un en-tête de requête HTTP. Pour un serveur,
     cette valeur doit être suffisamment grande pour contenir tout
     en-tête d'une requête client normale. La taille d'un champ d'en-tête
@@ -2086,7 +2099,9 @@ requête HTTP</td></tr>
     </code></p></div>
 
     <div class="note">Dans des conditions normales, la valeur par défaut de cette
-    directive ne doit pas être modifiée.</div>
+    directive ne doit pas être modifiée. En outre, vous ne
+    pouvez pas spécifier une valeur supérieure à 8190 sans modifier le
+    code source et recompiler.</div>
 
     <div class="warning"><h3>Avertissement</h3>
      <p>Dans le cas des serveurs virtuels par noms, la valeur de
@@ -2112,7 +2127,7 @@ HTTP</td></tr>
     pour une ligne de requête HTTP en <var>octets</var>.</p>
 
     <p>La directive <code class="directive">LimitRequestLine</code> permet à
-    l'administrateur du serveur de réduire ou augmenter la taille
+    l'administrateur du serveur de définir la taille
     maximale autorisée d'une ligne de requête HTTP client. Comme une
     requête comporte une méthode HTTP, un URI, et une version de
     protocole, la directive <code class="directive">LimitRequestLine</code>
@@ -2134,7 +2149,9 @@ HTTP</td></tr>
     </code></p></div>
 
     <div class="note">Dans des conditions normales, la valeur par défaut de cette
-    directive ne doit pas être modifiée.</div>
+    directive ne doit pas être modifiée. En outre, vous ne
+    pouvez pas spécifier une valeur supérieure à 8190 sans modifier le
+    code source et recompiler.</div>
 
     <div class="warning"><h3>Avertissement</h3>
      <p>Dans le cas des serveurs virtuels par noms, la valeur de
@@ -2491,6 +2508,41 @@ persistante</td></tr>
 
 </div>
 <div class="top"><a href="#page-header"><img alt="top" src="../images/up.gif" /></a></div>
+<div class="directive-section"><h2><a name="MaxRanges" id="MaxRanges">MaxRanges</a> <a name="maxranges" id="maxranges">Directive</a></h2>
+<table class="directive">
+<tr><th><a href="directive-dict.html#Description">Description:</a></th><td>Nombre de segments de données autorisé avant le renvoi de
+l'intégralité de la ressource</td></tr>
+<tr><th><a href="directive-dict.html#Syntax">Syntaxe:</a></th><td><code>MaxRanges default | unlimited | none | <var>nombre de segments</var></code></td></tr>
+<tr><th><a href="directive-dict.html#Default">Défaut:</a></th><td><code>MaxRanges 200</code></td></tr>
+<tr><th><a href="directive-dict.html#Context">Contexte:</a></th><td>configuration du serveur, serveur virtuel, répertoire</td></tr>
+<tr><th><a href="directive-dict.html#Status">Statut:</a></th><td>Core</td></tr>
+<tr><th><a href="directive-dict.html#Module">Module:</a></th><td>core</td></tr>
+<tr><th><a href="directive-dict.html#Compatibility">Compatibilité:</a></th><td>Disponible depuis la version 2.2.21 du serveur HTTP
+Apache</td></tr>
+</table>
+    <p>La directive <code class="directive">MaxRanges</code> permet de limiter
+    le nombre de segments de données que le serveur va renvoyer au
+    client. Si un nombre de segments plus important est demandé, la
+    ressource sera renvoyée dans son intégralité.</p>
+
+    <dl>  
+      <dt><strong>default</strong></dt>
+      <dd>Limite le nombre de segments de données à 200 (valeur par
+      défaut définie à la compilation).</dd>
+   
+      <dt><strong>none</strong></dt>
+      <dd>Les en-têtes Range sont ignorés.</dd>
+          
+      <dt><strong>unlimited</strong></dt>
+      <dd>Le nombre de segments de données est illimité.</dd>
+
+      <dt><var>nombre de segments</var></dt>
+      <dd>Un nombre positif représentera la nombre de segments de
+      données maximal que le serveur renverra au client.</dd>
+    </dl>
+
+</div>
+<div class="top"><a href="#page-header"><img alt="top" src="../images/up.gif" /></a></div>
 <div class="directive-section"><h2><a name="NameVirtualHost" id="NameVirtualHost">NameVirtualHost</a> <a name="namevirtualhost" id="namevirtualhost">Directive</a></h2>
 <table class="directive">
 <tr><th><a href="directive-dict.html#Description">Description:</a></th><td>Définit une adresse IP pour les serveurs virtuels à base de
@@ -2504,10 +2556,11 @@ nom</td></tr>
     obligatoire si vous envisagez de configurer des <a href="../vhosts/">serveurs virtuels par nom</a>.</p>
 
     <p>Bien que <var>adresse</var> puisse être un nom d'hôte, il est
-    recommandé d'utiliser plutôt une adresse IP, comme</p>
+    recommandé d'utiliser plutôt une adresse IP et un port,
+    dans le style</p>
 
     <div class="example"><p><code>
-      NameVirtualHost 111.22.33.44
+      NameVirtualHost 111.22.33.44:80
     </code></p></div>
 
     <p>La directive <code class="directive">NameVirtualHost</code> vous permet
@@ -2560,8 +2613,8 @@ nom</td></tr>
        l'argument de la directive <code class="directive">NameVirtualHost</code>.</p>
 
       <div class="example"><p><code>
-        NameVirtualHost 1.2.3.4<br />
-        &lt;VirtualHost 1.2.3.4&gt;<br />
+        NameVirtualHost 1.2.3.4:80<br />
+        &lt;VirtualHost 1.2.3.4:80&gt;<br />
         # ...<br />
         &lt;/VirtualHost&gt;<br />
       </code></p></div>
@@ -3609,7 +3662,7 @@ appropriés, Off dans le cas contraire</code></td></tr>
 <code>TRACE</code></td></tr>
 <tr><th><a href="directive-dict.html#Syntax">Syntaxe:</a></th><td><code>TraceEnable <var>[on|off|extended]</var></code></td></tr>
 <tr><th><a href="directive-dict.html#Default">Défaut:</a></th><td><code>TraceEnable on</code></td></tr>
-<tr><th><a href="directive-dict.html#Context">Contexte:</a></th><td>configuration du serveur</td></tr>
+<tr><th><a href="directive-dict.html#Context">Contexte:</a></th><td>configuration du serveur, serveur virtuel</td></tr>
 <tr><th><a href="directive-dict.html#Status">Statut:</a></th><td>Core</td></tr>
 <tr><th><a href="directive-dict.html#Module">Module:</a></th><td>core</td></tr>
 <tr><th><a href="directive-dict.html#Compatibility">Compatibilité:</a></th><td>Disponible dans les versions 1.3.34, 2.0.55 et
@@ -3798,7 +3851,7 @@ d'hôte spécifique ou à une adresse IP</td></tr>
     </ul>
 
     <div class="example"><h3>Exemple</h3><p><code>
-      &lt;VirtualHost 10.1.2.3&gt;<br />
+      &lt;VirtualHost 10.1.2.3:80&gt;<br />
       <span class="indent">
         ServerAdmin webmaster@host.example.com<br />
         DocumentRoot /www/docs/host.example.com<br />
@@ -3816,7 +3869,7 @@ d'hôte spécifique ou à une adresse IP</td></tr>
     :</p>
 
     <div class="example"><p><code>
-      &lt;VirtualHost [2001:db8::a00:20ff:fea7:ccea]&gt;<br />
+      &lt;VirtualHost [2001:db8::a00:20ff:fea7:ccea]:80&gt;<br />
       <span class="indent">
         ServerAdmin webmaster@host.example.com<br />
         DocumentRoot /www/docs/host.example.com<br />
@@ -3900,6 +3953,6 @@ entre elles à la réception d'une requête</li>
 <a href="../ja/mod/core.html" hreflang="ja" rel="alternate" title="Japanese">&nbsp;ja&nbsp;</a> |
 <a href="../tr/mod/core.html" hreflang="tr" rel="alternate" title="Türkçe">&nbsp;tr&nbsp;</a></p>
 </div><div id="footer">
-<p class="apache">Copyright 2011 The Apache Software Foundation.<br />Autorisé sous <a href="http://www.apache.org/licenses/LICENSE-2.0">Apache License, Version 2.0</a>.</p>
+<p class="apache">Copyright 2012 The Apache Software Foundation.<br />Autorisé sous <a href="http://www.apache.org/licenses/LICENSE-2.0">Apache License, Version 2.0</a>.</p>
 <p class="menu"><a href="../mod/">Modules</a> | <a href="../mod/directives.html">Directives</a> | <a href="../faq/">FAQ</a> | <a href="../glossary.html">Glossaire</a> | <a href="../sitemap.html">Plan du site</a></p></div>
 </body></html>

@@ -272,6 +272,7 @@
 <li><a href="mpm_common.html#maxclients" id="M" name="M">MaxClients</a></li>
 <li><a href="core.html#maxkeepaliverequests">MaxKeepAliveRequests</a></li>
 <li><a href="mpm_common.html#maxmemfree">MaxMemFree</a></li>
+<li><a href="core.html#maxranges">MaxRanges</a></li>
 <li><a href="mpm_common.html#maxrequestsperchild">MaxRequestsPerChild</a></li>
 <li><a href="beos.html#maxrequestsperthread">MaxRequestsPerThread</a></li>
 <li><a href="prefork.html#maxspareservers">MaxSpareServers</a></li>
@@ -391,6 +392,7 @@
 <li><a href="mod_include.html#ssistarttag">SSIStartTag</a></li>
 <li><a href="mod_include.html#ssitimeformat">SSITimeFormat</a></li>
 <li><a href="mod_include.html#ssiundefinedecho">SSIUndefinedEcho</a></li>
+<li><a href="mod_ssl.html#sslallowemptyfragments">SSLAllowEmptyFragments</a></li>
 <li><a href="mod_ssl.html#sslcacertificatefile">SSLCACertificateFile</a></li>
 <li><a href="mod_ssl.html#sslcacertificatepath">SSLCACertificatePath</a></li>
 <li><a href="mod_ssl.html#sslcadnrequestfile">SSLCADNRequestFile</a></li>
@@ -468,6 +470,6 @@
 <a href="../tr/mod/directives.html" hreflang="tr" rel="alternate" title="Türkçe">&nbsp;tr&nbsp;</a> |
 <a href="../zh-cn/mod/directives.html" hreflang="zh-cn" rel="alternate" title="Simplified Chinese">&nbsp;zh-cn&nbsp;</a></p>
 </div><div id="footer">
-<p class="apache">Copyright 2011 The Apache Software Foundation.<br />Licensed under the <a href="http://www.apache.org/licenses/LICENSE-2.0">Apache License, Version 2.0</a>.</p>
+<p class="apache">Copyright 2012 The Apache Software Foundation.<br />Licensed under the <a href="http://www.apache.org/licenses/LICENSE-2.0">Apache License, Version 2.0</a>.</p>
 <p class="menu"><a href="../mod/">Modules</a> | <a href="../mod/directives.html">Directives</a> | <a href="../faq/">FAQ</a> | <a href="../glossary.html">Glossary</a> | <a href="../sitemap.html">Sitemap</a></p></div>
 </body></html>

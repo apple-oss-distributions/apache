@@ -184,7 +184,12 @@ static int filter_lookup(ap_filter_t *f, ap_filter_rec_t *filter)
             str = apr_table_get(r->headers_in, provider->value);
             break;
         case RESPONSE_HEADERS:
+            /* Try r->headers_out first, fall back on err_headers_out. */
             str = apr_table_get(r->headers_out, provider->value);
+            if (str) {
+                break;
+            }
+            str = apr_table_get(r->err_headers_out, provider->value);
             break;
         case SUBPROCESS_ENV:
             str = apr_table_get(r->subprocess_env, provider->value);
@@ -316,7 +321,7 @@ static int filter_lookup(ap_filter_t *f, ap_filter_rec_t *filter)
             }
 
             if (proto_flags & AP_FILTER_PROTO_NO_BYTERANGE) {
-                apr_table_unset(r->headers_out, "Accept-Ranges");
+                apr_table_setn(r->headers_out, "Accept-Ranges", "none");
             }
             else if (rctx && rctx->range) {
                 /* restore range header we saved earlier */
@@ -576,7 +581,7 @@ static const char *filter_provider(cmd_parms *cmd, void *CFG, const char *args)
         break;
     case '/':
         provider->match_type = REGEX_MATCH;
-        rxend = ap_strchr_c(match, '/');
+        rxend = ap_strrchr_c(match, '/');
         if (!rxend) {
               return "Bad regexp syntax";
         }

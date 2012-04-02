@@ -127,10 +127,10 @@
       Alias /image /ftp/pub/image
     </code></p></div>
 
-    <p>A request for <code>http://myserver/image/foo.gif</code> would cause
+    <p>A request for <code>http://example.com/image/foo.gif</code> would cause
     the server to return the file <code>/ftp/pub/image/foo.gif</code>.  Only
     complete path segments are matched, so the above alias would not match a
-    request for <code>http://myserver/imagefoo.gif</code>.  For more complex
+    request for <code>http://example.com/imagefoo.gif</code>.  For more complex
     matching using regular expressions, see the <code class="directive"><a href="#aliasmatch">AliasMatch</a></code> directive.</p>
 
     <p>Note that if you include a trailing / on the
@@ -421,7 +421,7 @@ target as a CGI script</td></tr>
       ScriptAlias /cgi-bin/ /web/cgi-bin/
     </code></p></div>
 
-    <p>A request for <code>http://myserver/cgi-bin/foo</code> would cause the
+    <p>A request for <code>http://example.com/cgi-bin/foo</code> would cause the
     server to run the script <code>/web/cgi-bin/foo</code>.  This configuration
     is essentially equivalent to:</p>
     <div class="example"><p><code>
@@ -514,6 +514,6 @@ and designates the target as a CGI script</td></tr>
 <a href="../ko/mod/mod_alias.html" hreflang="ko" rel="alternate" title="Korean">&nbsp;ko&nbsp;</a> |
 <a href="../tr/mod/mod_alias.html" hreflang="tr" rel="alternate" title="Türkçe">&nbsp;tr&nbsp;</a></p>
 </div><div id="footer">
-<p class="apache">Copyright 2011 The Apache Software Foundation.<br />Licensed under the <a href="http://www.apache.org/licenses/LICENSE-2.0">Apache License, Version 2.0</a>.</p>
+<p class="apache">Copyright 2012 The Apache Software Foundation.<br />Licensed under the <a href="http://www.apache.org/licenses/LICENSE-2.0">Apache License, Version 2.0</a>.</p>
 <p class="menu"><a href="../mod/">Modules</a> | <a href="../mod/directives.html">Directives</a> | <a href="../faq/">FAQ</a> | <a href="../glossary.html">Glossary</a> | <a href="../sitemap.html">Sitemap</a></p></div>
 </body></html>
