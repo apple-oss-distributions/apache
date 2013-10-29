@@ -2,7 +2,7 @@ Project    = httpd
 
 include $(MAKEFILEPATH)/CoreOS/ReleaseControl/Common.make
 
-Version    = 2.2.22
+Version    = 2.2.24
 Sources    = $(SRCROOT)/$(Project)
 
 Patch_List = patch-config.layout \
@@ -17,7 +17,6 @@ Patch_List = patch-config.layout \
              apachectl.diff \
              PR-5432464.diff \
              PR-4764662.diff \
-             PR-6182207.diff \
              PR-7484748-EALREADY.diff \
              PR-7652362-ulimit.diff \
              PR-6223104.diff \
@@ -92,7 +91,6 @@ post-install:
 	$(INSTALL_FILE) $(SRCROOT)/PoweredByMacOSX*.gif $(DSTROOT)/Library/WebServer/Documents
 	$(MKDIR) $(DSTROOT)/System/Library/LaunchDaemons
 	$(INSTALL_SCRIPT) $(SRCROOT)/webpromotion.rb $(DSTROOT)/usr/sbin/webpromotion
-	$(INSTALL_SCRIPT) $(SRCROOT)/httpd-wrapper.rb $(DSTROOT)/usr/sbin/httpd-wrapper
 	$(INSTALL_FILE) $(SRCROOT)/org.apache.httpd.plist $(DSTROOT)/System/Library/LaunchDaemons
 	$(MKDIR) $(DSTROOT)/usr/local/OpenSourceVersions $(DSTROOT)/usr/local/OpenSourceLicenses
 	$(INSTALL_FILE) $(SRCROOT)/apache.plist $(DSTROOT)/usr/local/OpenSourceVersions/apache.plist
