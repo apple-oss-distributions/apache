@@ -526,7 +526,7 @@ DAV_DECLARE(dav_error *)dav_open_propdb(request_rec *r, dav_lockdb *lockdb,
 
 #if DAV_DEBUG
     if (resource->uri == NULL) {
-        return dav_new_error(r->pool, HTTP_INTERNAL_SERVER_ERROR, 0,
+        return dav_new_error(r->pool, HTTP_INTERNAL_SERVER_ERROR, 0, 0,
                              "INTERNAL DESIGN ERROR: resource must define "
                              "its URI.");
     }
@@ -594,13 +594,14 @@ DAV_DECLARE(dav_get_props_result) dav_get_allprops(dav_propdb *propdb,
         if (propdb->db != NULL) {
             dav_xmlns_info *xi = dav_xmlns_create(propdb->p);
             dav_prop_name name;
+            dav_error *err;
 
             /* define (up front) any namespaces the db might need */
             (void) (*db_hooks->define_namespaces)(propdb->db, xi);
 
             /* get the first property name, beginning the scan */
-            (void) (*db_hooks->first_name)(propdb->db, &name);
-            while (name.ns != NULL) {
+            err = (*db_hooks->first_name)(propdb->db, &name);
+            while (!err && name.ns) {
 
                 /*
                 ** We also look for <DAV:getcontenttype> and
@@ -619,7 +620,6 @@ DAV_DECLARE(dav_get_props_result) dav_get_allprops(dav_propdb *propdb,
                 }
 
                 if (what == DAV_PROP_INSERT_VALUE) {
-                    dav_error *err;
                     int found;
 
                     if ((err = (*db_hooks->output_value)(propdb->db, &name,
@@ -638,7 +638,7 @@ DAV_DECLARE(dav_get_props_result) dav_get_allprops(dav_propdb *propdb,
                 }
 
               next_key:
-                (void) (*db_hooks->next_name)(propdb->db, &name);
+                err = (*db_hooks->next_name)(propdb->db, &name);
             }
 
             /* all namespaces have been entered into xi. generate them into
@@ -789,6 +789,7 @@ DAV_DECLARE(dav_get_props_result) dav_get_props(dav_propdb *propdb,
 #if 0
                 /* ### need to change signature to return an error */
                 return dav_new_error(propdb->p, HTTP_INTERNAL_SERVER_ERROR, 0,
+                                     0,
                                      "INTERNAL DESIGN ERROR: insert_liveprop "
                                      "did not insert what was asked for.");
 #endif
@@ -932,7 +933,7 @@ DAV_DECLARE_NONSTD(void) dav_prop_validate(dav_prop_ctx *ctx)
 
     if (!dav_rw_liveprop(propdb, priv)) {
         ctx->err = dav_new_error(propdb->p, HTTP_CONFLICT,
-                                 DAV_ERR_PROP_READONLY,
+                                 DAV_ERR_PROP_READONLY, 0,
                                  "Property is read-only.");
         return;
     }
@@ -968,7 +969,7 @@ DAV_DECLARE_NONSTD(void) dav_prop_validate(dav_prop_ctx *ctx)
     */
     if (propdb->db == NULL) {
         ctx->err = dav_new_error(propdb->p, HTTP_INTERNAL_SERVER_ERROR,
-                                 DAV_ERR_PROP_NO_DATABASE,
+                                 DAV_ERR_PROP_NO_DATABASE, 0,
                                  "Attempted to set/remove a property "
                                  "without a valid, open, read/write "
                                  "property database.");
