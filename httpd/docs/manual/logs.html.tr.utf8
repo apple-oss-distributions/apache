@@ -29,7 +29,6 @@
 <a href="./ko/logs.html" hreflang="ko" rel="alternate" title="Korean">&nbsp;ko&nbsp;</a> |
 <a href="./tr/logs.html" title="Türkçe">&nbsp;tr&nbsp;</a></p>
 </div>
-<div class="outofdate">Bu çeviri güncel olmayabilir. Son değişiklikler için İngilizce sürüm geçerlidir.</div>
 
     <p>Bir HTTP sunucusunu verimli şekilde yönetebilmek için oluşabilecek
       sorunlardan başka sunucunun başarımı ve etkinliği hakkında da bazı geri
@@ -38,7 +37,7 @@
       yeteneğini nasıl yapılandıracağınızdan ve günlük kayıtlarını nasıl
       yorumlayacağınızdan bahsedilecektir.</p>
   </div>
-<div id="quickview"><ul id="toc"><li><img alt="" src="./images/down.gif" /> <a href="#overview">Giriş</a></li>
+<div id="quickview"><a href="https://www.apache.org/foundation/contributing.html" class="badge"><img src="https://www.apache.org/images/SupportApache-small.png" alt="Support Apache!" /></a><ul id="toc"><li><img alt="" src="./images/down.gif" /> <a href="#overview">Giriş</a></li>
 <li><img alt="" src="./images/down.gif" /> <a href="#security">Güvenlik Uyarısı</a></li>
 <li><img alt="" src="./images/down.gif" /> <a href="#errorlog">Hata Günlüğü</a></li>
 <li><img alt="" src="./images/down.gif" /> <a href="#permodule">Modüllere göre günlükleme</a></li>
@@ -185,7 +184,7 @@
       bilgiyi incelemektir. Günlük incelemesi bu belgenin kapsamına dahil
       değildir ve aslında bu işlem sunucunun yaptığı işlerden biri değildir.
       Bu konu ve günlük incelemesi yapan uygulamalar hakkında daha ayrıntılı
-      bilgi edinmek için <a href="http://dmoz.org/Computers/Software/Internet/Site_Management/Log_Analysis/">dmoz.org</a> bakınız.</p>
+      bilgi edinmek için <a href="http://dmoz.org/Computers/Software/Internet/Site_Management/Log_Analysis/">dmoz.org</a>'a bakınız.</p>
 
     <p>Apache httpd’nin çeşitli sürümlerinde erişim günlüklerini denetlemek
       için kullanılan diğer modüller ve yönergeler arasında mod_log_referer,
@@ -450,7 +449,7 @@ LogFormat "%!200,304,302{Referer}i" refererlog</pre>
         <strong>değilse</strong> (durum kodlarının öncesindeki "!" imine
         dikkat) <code>Referer</code> başlığı günlüklenecektir.</p>
 
-      <p>Koşulaa bağlı günlük kaydının çok esnek ve güçlü olabileceğini
+      <p>Koşula bağlı günlük kaydının çok esnek ve güçlü olabileceğini
         göstermiş olsak da günlük içeriğini denetlemenin tek yolu bu değildir.
         Günlük dosyaları sunucu etkinliğini eksiksiz olarak kaydedebildikleri
         takdirde daha yararlı olurlar. Günlük dosyalarını sonradan işleme tabi
@@ -677,7 +676,7 @@ var comments_identifier = 'http://httpd.apache.org/docs/2.4/logs.html';
     }
 })(window, document);
 //--><!]]></script></div><div id="footer">
-<p class="apache">Copyright 2016 The Apache Software Foundation.<br /><a href="http://www.apache.org/licenses/LICENSE-2.0">Apache License, Version 2.0</a> altında lisanslıdır.</p>
+<p class="apache">Copyright 2017 The Apache Software Foundation.<br /><a href="http://www.apache.org/licenses/LICENSE-2.0">Apache License, Version 2.0</a> altında lisanslıdır.</p>
 <p class="menu"><a href="./mod/">Modüller</a> | <a href="./mod/directives.html">Yönergeler</a> | <a href="http://wiki.apache.org/httpd/FAQ">SSS</a> | <a href="./glossary.html">Terimler</a> | <a href="./sitemap.html">Site Haritası</a></p></div><script type="text/javascript"><!--//--><![CDATA[//><!--
 if (typeof(prettyPrint) !== 'undefined') {
     prettyPrint();

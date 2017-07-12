@@ -24,12 +24,12 @@
 <a href="http://www.apache.org/">Apache</a> &gt; <a href="http://httpd.apache.org/">HTTP Sunucusu</a> &gt; <a href="http://httpd.apache.org/docs/">Belgeleme</a> &gt; <a href="../">Sürüm 2.4</a> &gt; <a href="./">Nasıllar ve Öğreticiler</a></div><div id="page-content"><div id="preamble"><h1>Kimlik Doğrulama ve Yetkilendirme</h1>
 <div class="toplang">
 <p><span>Mevcut Diller: </span><a href="../en/howto/auth.html" hreflang="en" rel="alternate" title="English">&nbsp;en&nbsp;</a> |
+<a href="../es/howto/auth.html" hreflang="es" rel="alternate" title="Español">&nbsp;es&nbsp;</a> |
 <a href="../fr/howto/auth.html" hreflang="fr" rel="alternate" title="Français">&nbsp;fr&nbsp;</a> |
 <a href="../ja/howto/auth.html" hreflang="ja" rel="alternate" title="Japanese">&nbsp;ja&nbsp;</a> |
 <a href="../ko/howto/auth.html" hreflang="ko" rel="alternate" title="Korean">&nbsp;ko&nbsp;</a> |
 <a href="../tr/howto/auth.html" title="Türkçe">&nbsp;tr&nbsp;</a></p>
 </div>
-<div class="outofdate">Bu çeviri güncel olmayabilir. Son değişiklikler için İngilizce sürüm geçerlidir.</div>
 
     <p>Kimlik Doğrulama istediğiniz kişileri teyid etme işlemidir.
       Yetkilendirme ise kişilerin nereye gireceklerine ve hangi bilgiye
@@ -38,7 +38,7 @@
     <p>Genel erişim denetimi için <a href="access.html">Erişim Denetimi
       Nasıl</a> belgesine bakınız.</p>
 </div>
-<div id="quickview"><ul id="toc"><li><img alt="" src="../images/down.gif" /> <a href="#related">İlgili modüller ve Yönergeler</a></li>
+<div id="quickview"><a href="https://www.apache.org/foundation/contributing.html" class="badge"><img src="https://www.apache.org/images/SupportApache-small.png" alt="Support Apache!" /></a><ul id="toc"><li><img alt="" src="../images/down.gif" /> <a href="#related">İlgili modüller ve Yönergeler</a></li>
 <li><img alt="" src="../images/down.gif" /> <a href="#introduction">Giriş</a></li>
 <li><img alt="" src="../images/down.gif" /> <a href="#theprerequisites">Ön gereksinimler</a></li>
 <li><img alt="" src="../images/down.gif" /> <a href="#gettingitworking">Çalışmaya Başlama</a></li>
@@ -566,6 +566,18 @@ Require group Grupismi</pre>
       yapılandırmalarla uyumluluğu sağlamak için bu yönergeler
       <code class="module"><a href="../mod/mod_access_compat.html">mod_access_compat</a></code> modülüne taşınmıştır.</p>
 
+      <div class="warning"><h3>Note</h3>
+        <p><code class="module"><a href="../mod/mod_access_compat.html">mod_access_compat</a></code> ile sağlanan yönergelerin 
+        kullanımı artık önerilmemekte, <code class="module"><a href="../mod/mod_authz_host.html">mod_authz_host</a></code> 
+        modülündeki yönergeler önerilmektedir. <code class="directive"><a href="../mod/mod_access_compat.html#order">Order</a></code>, <code class="directive"><a href="../mod/mod_access_compat.html#allow">Allow</a></code> veya <code class="directive"><a href="../mod/mod_access_compat.html#deny">Deny</a></code> ile
+        <code class="directive"><a href="../mod/mod_authz_core.html#require">Require</a></code> gibi daha yeni 
+        olanlarının yenilerle karışık kullanımı teknik olarak mümkünse de 
+        önerilmemektedir. <code class="module"><a href="../mod/mod_access_compat.html">mod_access_compat</a></code> modülü, 2.4 
+        yükseltmesini kolaylaştırmak için sadece eski yönergeleri içeren 
+        yapılandırmaları desteklemek üzere oluşturulmuştur.  Daha ayrıntılı 
+        bilgi için <a href="../upgrading.html">yükseltme</a> belgesine bakınız.
+        </p>
+      </div>
     
 
   </div><div class="top"><a href="#page-header"><img alt="top" src="../images/up.gif" /></a></div>
@@ -594,6 +606,7 @@ Require group Grupismi</pre>
   </div></div>
 <div class="bottomlang">
 <p><span>Mevcut Diller: </span><a href="../en/howto/auth.html" hreflang="en" rel="alternate" title="English">&nbsp;en&nbsp;</a> |
+<a href="../es/howto/auth.html" hreflang="es" rel="alternate" title="Español">&nbsp;es&nbsp;</a> |
 <a href="../fr/howto/auth.html" hreflang="fr" rel="alternate" title="Français">&nbsp;fr&nbsp;</a> |
 <a href="../ja/howto/auth.html" hreflang="ja" rel="alternate" title="Japanese">&nbsp;ja&nbsp;</a> |
 <a href="../ko/howto/auth.html" hreflang="ko" rel="alternate" title="Korean">&nbsp;ko&nbsp;</a> |
@@ -616,7 +629,7 @@ var comments_identifier = 'http://httpd.apache.org/docs/2.4/howto/auth.html';
     }
 })(window, document);
 //--><!]]></script></div><div id="footer">
-<p class="apache">Copyright 2016 The Apache Software Foundation.<br /><a href="http://www.apache.org/licenses/LICENSE-2.0">Apache License, Version 2.0</a> altında lisanslıdır.</p>
+<p class="apache">Copyright 2017 The Apache Software Foundation.<br /><a href="http://www.apache.org/licenses/LICENSE-2.0">Apache License, Version 2.0</a> altında lisanslıdır.</p>
 <p class="menu"><a href="../mod/">Modüller</a> | <a href="../mod/directives.html">Yönergeler</a> | <a href="http://wiki.apache.org/httpd/FAQ">SSS</a> | <a href="../glossary.html">Terimler</a> | <a href="../sitemap.html">Site Haritası</a></p></div><script type="text/javascript"><!--//--><![CDATA[//><!--
 if (typeof(prettyPrint) !== 'undefined') {
     prettyPrint();

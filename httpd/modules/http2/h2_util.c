@@ -15,6 +15,8 @@
 
 #include <assert.h>
 #include <apr_strings.h>
+#include <apr_thread_mutex.h>
+#include <apr_thread_cond.h>
 
 #include <httpd.h>
 #include <http_core.h>
@@ -27,7 +29,7 @@
 #include "h2_util.h"
 
 /* h2_log2(n) iff n is a power of 2 */
-unsigned char h2_log2(apr_uint32_t n)
+unsigned char h2_log2(int n)
 {
     int lz = 0;
     if (!n) {
@@ -370,39 +372,6 @@ size_t h2_ihash_shift(h2_ihash_t *ih, void **buffer, size_t max)
     return ctx.len;
 }
 
-typedef struct {
-    h2_ihash_t *ih;
-    int *buffer;
-    size_t max;
-    size_t len;
-} icollect_ctx;
-
-static int icollect_iter(void *x, void *val)
-{
-    icollect_ctx *ctx = x;
-    if (ctx->len < ctx->max) {
-        ctx->buffer[ctx->len++] = *((int*)((char *)val + ctx->ih->ioff));
-        return 1;
-    }
-    return 0;
-}
-
-size_t h2_ihash_ishift(h2_ihash_t *ih, int *buffer, size_t max)
-{
-    icollect_ctx ctx;
-    size_t i;
-    
-    ctx.ih = ih;
-    ctx.buffer = buffer;
-    ctx.max = max;
-    ctx.len = 0;
-    h2_ihash_iter(ih, icollect_iter, &ctx);
-    for (i = 0; i < ctx.len; ++i) {
-        h2_ihash_remove(ih, buffer[i]);
-    }
-    return ctx.len;
-}
-
 /*******************************************************************************
  * iqueue - sorted list of int
  ******************************************************************************/
@@ -436,14 +405,16 @@ int h2_iq_count(h2_iqueue *q)
 }
 
 
-void h2_iq_add(h2_iqueue *q, int sid, h2_iq_cmp *cmp, void *ctx)
+int h2_iq_add(h2_iqueue *q, int sid, h2_iq_cmp *cmp, void *ctx)
 {
     int i;
     
+    if (h2_iq_contains(q, sid)) {
+        return 0;
+    }
     if (q->nelts >= q->nalloc) {
         iq_grow(q, q->nalloc * 2);
     }
-    
     i = (q->head + q->nelts) % q->nalloc;
     q->elts[i] = sid;
     ++q->nelts;
@@ -452,6 +423,12 @@ void h2_iq_add(h2_iqueue *q, int sid, h2_iq_cmp *cmp, void *ctx)
         /* bubble it to the front of the queue */
         iq_bubble_up(q, i, q->head, cmp, ctx);
     }
+    return 1;
+}
+
+int h2_iq_append(h2_iqueue *q, int sid)
+{
+    return h2_iq_add(q, sid, NULL, NULL);
 }
 
 int h2_iq_remove(h2_iqueue *q, int sid)
@@ -522,6 +499,18 @@ int h2_iq_shift(h2_iqueue *q)
     return sid;
 }
 
+size_t h2_iq_mshift(h2_iqueue *q, int *pint, size_t max)
+{
+    int i;
+    for (i = 0; i < max; ++i) {
+        pint[i] = h2_iq_shift(q);
+        if (pint[i] == 0) {
+            break;
+        }
+    }
+    return i;
+}
+
 static void iq_grow(h2_iqueue *q, int nlen)
 {
     if (nlen > q->nalloc) {
@@ -573,6 +562,633 @@ static int iq_bubble_down(h2_iqueue *q, int i, int bottom,
     return i;
 }
 
+int h2_iq_contains(h2_iqueue *q, int sid)
+{
+    int i;
+    for (i = 0; i < q->nelts; ++i) {
+        if (sid == q->elts[(q->head + i) % q->nalloc]) {
+            return 1;
+        }
+    }
+    return 0;
+}
+
+/*******************************************************************************
+ * FIFO queue
+ ******************************************************************************/
+
+struct h2_fifo {
+    void **elems;
+    int nelems;
+    int set;
+    int head;
+    int count;
+    int aborted;
+    apr_thread_mutex_t *lock;
+    apr_thread_cond_t  *not_empty;
+    apr_thread_cond_t  *not_full;
+};
+
+static int nth_index(h2_fifo *fifo, int n) 
+{
+    return (fifo->head + n) % fifo->nelems;
+}
+
+static apr_status_t fifo_destroy(void *data) 
+{
+    h2_fifo *fifo = data;
+
+    apr_thread_cond_destroy(fifo->not_empty);
+    apr_thread_cond_destroy(fifo->not_full);
+    apr_thread_mutex_destroy(fifo->lock);
+
+    return APR_SUCCESS;
+}
+
+static int index_of(h2_fifo *fifo, void *elem)
+{
+    int i;
+    
+    for (i = 0; i < fifo->count; ++i) {
+        if (elem == fifo->elems[nth_index(fifo, i)]) {
+            return i;
+        }
+    }
+    return -1;
+}
+
+static apr_status_t create_int(h2_fifo **pfifo, apr_pool_t *pool, 
+                               int capacity, int as_set)
+{
+    apr_status_t rv;
+    h2_fifo *fifo;
+    
+    fifo = apr_pcalloc(pool, sizeof(*fifo));
+    if (fifo == NULL) {
+        return APR_ENOMEM;
+    }
+
+    rv = apr_thread_mutex_create(&fifo->lock,
+                                 APR_THREAD_MUTEX_UNNESTED, pool);
+    if (rv != APR_SUCCESS) {
+        return rv;
+    }
+
+    rv = apr_thread_cond_create(&fifo->not_empty, pool);
+    if (rv != APR_SUCCESS) {
+        return rv;
+    }
+
+    rv = apr_thread_cond_create(&fifo->not_full, pool);
+    if (rv != APR_SUCCESS) {
+        return rv;
+    }
+
+    fifo->elems = apr_pcalloc(pool, capacity * sizeof(void*));
+    if (fifo->elems == NULL) {
+        return APR_ENOMEM;
+    }
+    fifo->nelems = capacity;
+    fifo->set = as_set;
+    
+    *pfifo = fifo;
+    apr_pool_cleanup_register(pool, fifo, fifo_destroy, apr_pool_cleanup_null);
+
+    return APR_SUCCESS;
+}
+
+apr_status_t h2_fifo_create(h2_fifo **pfifo, apr_pool_t *pool, int capacity)
+{
+    return create_int(pfifo, pool, capacity, 0);
+}
+
+apr_status_t h2_fifo_set_create(h2_fifo **pfifo, apr_pool_t *pool, int capacity)
+{
+    return create_int(pfifo, pool, capacity, 1);
+}
+
+apr_status_t h2_fifo_term(h2_fifo *fifo)
+{
+    apr_status_t rv;
+    if ((rv = apr_thread_mutex_lock(fifo->lock)) == APR_SUCCESS) {
+        fifo->aborted = 1;
+        apr_thread_mutex_unlock(fifo->lock);
+    }
+    return rv;
+}
+
+apr_status_t h2_fifo_interrupt(h2_fifo *fifo)
+{
+    apr_status_t rv;
+    if ((rv = apr_thread_mutex_lock(fifo->lock)) == APR_SUCCESS) {
+        apr_thread_cond_broadcast(fifo->not_empty);
+        apr_thread_cond_broadcast(fifo->not_full);
+        apr_thread_mutex_unlock(fifo->lock);
+    }
+    return rv;
+}
+
+int h2_fifo_count(h2_fifo *fifo)
+{
+    return fifo->count;
+}
+
+static apr_status_t check_not_empty(h2_fifo *fifo, int block)
+{
+    while (fifo->count == 0) {
+        if (!block) {
+            return APR_EAGAIN;
+        }
+        if (fifo->aborted) {
+            return APR_EOF;
+        }
+        apr_thread_cond_wait(fifo->not_empty, fifo->lock);
+    }
+    return APR_SUCCESS;
+}
+
+static apr_status_t fifo_push_int(h2_fifo *fifo, void *elem, int block)
+{
+    if (fifo->aborted) {
+        return APR_EOF;
+    }
+
+    if (fifo->set && index_of(fifo, elem) >= 0) {
+        /* set mode, elem already member */
+        return APR_EEXIST;
+    }
+    else if (fifo->count == fifo->nelems) {
+        if (block) {
+            while (fifo->count == fifo->nelems) {
+                if (fifo->aborted) {
+                    return APR_EOF;
+                }
+                apr_thread_cond_wait(fifo->not_full, fifo->lock);
+            }
+        }
+        else {
+            return APR_EAGAIN;
+        }
+    }
+    
+    ap_assert(fifo->count < fifo->nelems);
+    fifo->elems[nth_index(fifo, fifo->count)] = elem;
+    ++fifo->count;
+    if (fifo->count == 1) {
+        apr_thread_cond_broadcast(fifo->not_empty);
+    }
+    return APR_SUCCESS;
+}
+
+static apr_status_t fifo_push(h2_fifo *fifo, void *elem, int block)
+{
+    apr_status_t rv;
+    
+    if (fifo->aborted) {
+        return APR_EOF;
+    }
+
+    if ((rv = apr_thread_mutex_lock(fifo->lock)) == APR_SUCCESS) {
+        rv = fifo_push_int(fifo, elem, block);
+        apr_thread_mutex_unlock(fifo->lock);
+    }
+    return rv;
+}
+
+apr_status_t h2_fifo_push(h2_fifo *fifo, void *elem)
+{
+    return fifo_push(fifo, elem, 1);
+}
+
+apr_status_t h2_fifo_try_push(h2_fifo *fifo, void *elem)
+{
+    return fifo_push(fifo, elem, 0);
+}
+
+static apr_status_t pull_head(h2_fifo *fifo, void **pelem, int block)
+{
+    apr_status_t rv;
+    
+    if ((rv = check_not_empty(fifo, block)) != APR_SUCCESS) {
+        *pelem = NULL;
+        return rv;
+    }
+    *pelem = fifo->elems[fifo->head];
+    --fifo->count;
+    if (fifo->count > 0) {
+        fifo->head = nth_index(fifo, 1);
+        if (fifo->count+1 == fifo->nelems) {
+            apr_thread_cond_broadcast(fifo->not_full);
+        }
+    }
+    return APR_SUCCESS;
+}
+
+static apr_status_t fifo_pull(h2_fifo *fifo, void **pelem, int block)
+{
+    apr_status_t rv;
+    
+    if (fifo->aborted) {
+        return APR_EOF;
+    }
+    
+    if ((rv = apr_thread_mutex_lock(fifo->lock)) == APR_SUCCESS) {
+        rv = pull_head(fifo, pelem, block);
+        apr_thread_mutex_unlock(fifo->lock);
+    }
+    return rv;
+}
+
+apr_status_t h2_fifo_pull(h2_fifo *fifo, void **pelem)
+{
+    return fifo_pull(fifo, pelem, 1);
+}
+
+apr_status_t h2_fifo_try_pull(h2_fifo *fifo, void **pelem)
+{
+    return fifo_pull(fifo, pelem, 0);
+}
+
+static apr_status_t fifo_peek(h2_fifo *fifo, h2_fifo_peek_fn *fn, void *ctx, int block)
+{
+    apr_status_t rv;
+    void *elem;
+    
+    if (fifo->aborted) {
+        return APR_EOF;
+    }
+    
+    if (APR_SUCCESS == (rv = apr_thread_mutex_lock(fifo->lock))) {
+        if (APR_SUCCESS == (rv = pull_head(fifo, &elem, block))) {
+            switch (fn(elem, ctx)) {
+                case H2_FIFO_OP_PULL:
+                    break;
+                case H2_FIFO_OP_REPUSH:
+                    rv = fifo_push_int(fifo, elem, block);
+                    break;
+            }
+        }
+        apr_thread_mutex_unlock(fifo->lock);
+    }
+    return rv;
+}
+
+apr_status_t h2_fifo_peek(h2_fifo *fifo, h2_fifo_peek_fn *fn, void *ctx)
+{
+    return fifo_peek(fifo, fn, ctx, 1);
+}
+
+apr_status_t h2_fifo_try_peek(h2_fifo *fifo, h2_fifo_peek_fn *fn, void *ctx)
+{
+    return fifo_peek(fifo, fn, ctx, 0);
+}
+
+apr_status_t h2_fifo_remove(h2_fifo *fifo, void *elem)
+{
+    apr_status_t rv;
+    
+    if (fifo->aborted) {
+        return APR_EOF;
+    }
+
+    if ((rv = apr_thread_mutex_lock(fifo->lock)) == APR_SUCCESS) {
+        int i, rc;
+        void *e;
+        
+        rc = 0;
+        for (i = 0; i < fifo->count; ++i) {
+            e = fifo->elems[nth_index(fifo, i)];
+            if (e == elem) {
+                ++rc;
+            }
+            else if (rc) {
+                fifo->elems[nth_index(fifo, i-rc)] = e;
+            }
+        }
+        if (rc) {
+            fifo->count -= rc;
+            if (fifo->count + rc == fifo->nelems) {
+                apr_thread_cond_broadcast(fifo->not_full);
+            }
+            rv = APR_SUCCESS;
+        }
+        else {
+            rv = APR_EAGAIN;
+        }
+        
+        apr_thread_mutex_unlock(fifo->lock);
+    }
+    return rv;
+}
+
+/*******************************************************************************
+ * FIFO int queue
+ ******************************************************************************/
+
+struct h2_ififo {
+    int *elems;
+    int nelems;
+    int set;
+    int head;
+    int count;
+    int aborted;
+    apr_thread_mutex_t *lock;
+    apr_thread_cond_t  *not_empty;
+    apr_thread_cond_t  *not_full;
+};
+
+static int inth_index(h2_ififo *fifo, int n) 
+{
+    return (fifo->head + n) % fifo->nelems;
+}
+
+static apr_status_t ififo_destroy(void *data) 
+{
+    h2_ififo *fifo = data;
+
+    apr_thread_cond_destroy(fifo->not_empty);
+    apr_thread_cond_destroy(fifo->not_full);
+    apr_thread_mutex_destroy(fifo->lock);
+
+    return APR_SUCCESS;
+}
+
+static int iindex_of(h2_ififo *fifo, int id)
+{
+    int i;
+    
+    for (i = 0; i < fifo->count; ++i) {
+        if (id == fifo->elems[inth_index(fifo, i)]) {
+            return i;
+        }
+    }
+    return -1;
+}
+
+static apr_status_t icreate_int(h2_ififo **pfifo, apr_pool_t *pool, 
+                                int capacity, int as_set)
+{
+    apr_status_t rv;
+    h2_ififo *fifo;
+    
+    fifo = apr_pcalloc(pool, sizeof(*fifo));
+    if (fifo == NULL) {
+        return APR_ENOMEM;
+    }
+
+    rv = apr_thread_mutex_create(&fifo->lock,
+                                 APR_THREAD_MUTEX_UNNESTED, pool);
+    if (rv != APR_SUCCESS) {
+        return rv;
+    }
+
+    rv = apr_thread_cond_create(&fifo->not_empty, pool);
+    if (rv != APR_SUCCESS) {
+        return rv;
+    }
+
+    rv = apr_thread_cond_create(&fifo->not_full, pool);
+    if (rv != APR_SUCCESS) {
+        return rv;
+    }
+
+    fifo->elems = apr_pcalloc(pool, capacity * sizeof(int));
+    if (fifo->elems == NULL) {
+        return APR_ENOMEM;
+    }
+    fifo->nelems = capacity;
+    fifo->set = as_set;
+    
+    *pfifo = fifo;
+    apr_pool_cleanup_register(pool, fifo, ififo_destroy, apr_pool_cleanup_null);
+
+    return APR_SUCCESS;
+}
+
+apr_status_t h2_ififo_create(h2_ififo **pfifo, apr_pool_t *pool, int capacity)
+{
+    return icreate_int(pfifo, pool, capacity, 0);
+}
+
+apr_status_t h2_ififo_set_create(h2_ififo **pfifo, apr_pool_t *pool, int capacity)
+{
+    return icreate_int(pfifo, pool, capacity, 1);
+}
+
+apr_status_t h2_ififo_term(h2_ififo *fifo)
+{
+    apr_status_t rv;
+    if ((rv = apr_thread_mutex_lock(fifo->lock)) == APR_SUCCESS) {
+        fifo->aborted = 1;
+        apr_thread_mutex_unlock(fifo->lock);
+    }
+    return rv;
+}
+
+apr_status_t h2_ififo_interrupt(h2_ififo *fifo)
+{
+    apr_status_t rv;
+    if ((rv = apr_thread_mutex_lock(fifo->lock)) == APR_SUCCESS) {
+        apr_thread_cond_broadcast(fifo->not_empty);
+        apr_thread_cond_broadcast(fifo->not_full);
+        apr_thread_mutex_unlock(fifo->lock);
+    }
+    return rv;
+}
+
+int h2_ififo_count(h2_ififo *fifo)
+{
+    return fifo->count;
+}
+
+static apr_status_t icheck_not_empty(h2_ififo *fifo, int block)
+{
+    while (fifo->count == 0) {
+        if (!block) {
+            return APR_EAGAIN;
+        }
+        if (fifo->aborted) {
+            return APR_EOF;
+        }
+        apr_thread_cond_wait(fifo->not_empty, fifo->lock);
+    }
+    return APR_SUCCESS;
+}
+
+static apr_status_t ififo_push_int(h2_ififo *fifo, int id, int block)
+{
+    if (fifo->aborted) {
+        return APR_EOF;
+    }
+
+    if (fifo->set && iindex_of(fifo, id) >= 0) {
+        /* set mode, elem already member */
+        return APR_EEXIST;
+    }
+    else if (fifo->count == fifo->nelems) {
+        if (block) {
+            while (fifo->count == fifo->nelems) {
+                if (fifo->aborted) {
+                    return APR_EOF;
+                }
+                apr_thread_cond_wait(fifo->not_full, fifo->lock);
+            }
+        }
+        else {
+            return APR_EAGAIN;
+        }
+    }
+    
+    ap_assert(fifo->count < fifo->nelems);
+    fifo->elems[inth_index(fifo, fifo->count)] = id;
+    ++fifo->count;
+    if (fifo->count == 1) {
+        apr_thread_cond_broadcast(fifo->not_empty);
+    }
+    return APR_SUCCESS;
+}
+
+static apr_status_t ififo_push(h2_ififo *fifo, int id, int block)
+{
+    apr_status_t rv;
+    
+    if (fifo->aborted) {
+        return APR_EOF;
+    }
+
+    if ((rv = apr_thread_mutex_lock(fifo->lock)) == APR_SUCCESS) {
+        rv = ififo_push_int(fifo, id, block);
+        apr_thread_mutex_unlock(fifo->lock);
+    }
+    return rv;
+}
+
+apr_status_t h2_ififo_push(h2_ififo *fifo, int id)
+{
+    return ififo_push(fifo, id, 1);
+}
+
+apr_status_t h2_ififo_try_push(h2_ififo *fifo, int id)
+{
+    return ififo_push(fifo, id, 0);
+}
+
+static apr_status_t ipull_head(h2_ififo *fifo, int *pi, int block)
+{
+    apr_status_t rv;
+    
+    if ((rv = icheck_not_empty(fifo, block)) != APR_SUCCESS) {
+        *pi = 0;
+        return rv;
+    }
+    *pi = fifo->elems[fifo->head];
+    --fifo->count;
+    if (fifo->count > 0) {
+        fifo->head = inth_index(fifo, 1);
+        if (fifo->count+1 == fifo->nelems) {
+            apr_thread_cond_broadcast(fifo->not_full);
+        }
+    }
+    return APR_SUCCESS;
+}
+
+static apr_status_t ififo_pull(h2_ififo *fifo, int *pi, int block)
+{
+    apr_status_t rv;
+    
+    if (fifo->aborted) {
+        return APR_EOF;
+    }
+    
+    if ((rv = apr_thread_mutex_lock(fifo->lock)) == APR_SUCCESS) {
+        rv = ipull_head(fifo, pi, block);
+        apr_thread_mutex_unlock(fifo->lock);
+    }
+    return rv;
+}
+
+apr_status_t h2_ififo_pull(h2_ififo *fifo, int *pi)
+{
+    return ififo_pull(fifo, pi, 1);
+}
+
+apr_status_t h2_ififo_try_pull(h2_ififo *fifo, int *pi)
+{
+    return ififo_pull(fifo, pi, 0);
+}
+
+static apr_status_t ififo_peek(h2_ififo *fifo, h2_ififo_peek_fn *fn, void *ctx, int block)
+{
+    apr_status_t rv;
+    int id;
+    
+    if (fifo->aborted) {
+        return APR_EOF;
+    }
+    
+    if (APR_SUCCESS == (rv = apr_thread_mutex_lock(fifo->lock))) {
+        if (APR_SUCCESS == (rv = ipull_head(fifo, &id, block))) {
+            switch (fn(id, ctx)) {
+                case H2_FIFO_OP_PULL:
+                    break;
+                case H2_FIFO_OP_REPUSH:
+                    rv = ififo_push_int(fifo, id, block);
+                    break;
+            }
+        }
+        apr_thread_mutex_unlock(fifo->lock);
+    }
+    return rv;
+}
+
+apr_status_t h2_ififo_peek(h2_ififo *fifo, h2_ififo_peek_fn *fn, void *ctx)
+{
+    return ififo_peek(fifo, fn, ctx, 1);
+}
+
+apr_status_t h2_ififo_try_peek(h2_ififo *fifo, h2_ififo_peek_fn *fn, void *ctx)
+{
+    return ififo_peek(fifo, fn, ctx, 0);
+}
+
+apr_status_t h2_ififo_remove(h2_ififo *fifo, int id)
+{
+    apr_status_t rv;
+    
+    if (fifo->aborted) {
+        return APR_EOF;
+    }
+
+    if ((rv = apr_thread_mutex_lock(fifo->lock)) == APR_SUCCESS) {
+        int i, rc;
+        int e;
+        
+        rc = 0;
+        for (i = 0; i < fifo->count; ++i) {
+            e = fifo->elems[inth_index(fifo, i)];
+            if (e == id) {
+                ++rc;
+            }
+            else if (rc) {
+                fifo->elems[inth_index(fifo, i-rc)] = e;
+            }
+        }
+        if (rc) {
+            fifo->count -= rc;
+            if (fifo->count + rc == fifo->nelems) {
+                apr_thread_cond_broadcast(fifo->not_full);
+            }
+            rv = APR_SUCCESS;
+        }
+        else {
+            rv = APR_EAGAIN;
+        }
+        
+        apr_thread_mutex_unlock(fifo->lock);
+    }
+    return rv;
+}
+
 /*******************************************************************************
  * h2_util for apt_table_t
  ******************************************************************************/
@@ -618,7 +1234,7 @@ static apr_status_t last_not_included(apr_bucket_brigade *bb,
 {
     apr_bucket *b;
     apr_status_t status = APR_SUCCESS;
-    int files_allowed = pfile_buckets_allowed? *pfile_buckets_allowed : 0;
+    int files_allowed = pfile_buckets_allowed? (int)*pfile_buckets_allowed : 0;
     
     if (maxlen >= 0) {
         /* Find the bucket, up to which we reach maxlen/mem bytes */
@@ -653,8 +1269,8 @@ static apr_status_t last_not_included(apr_bucket_brigade *bb,
                      * unless we do not move the file buckets */
                     --files_allowed;
                 }
-                else if (maxlen < b->length) {
-                    apr_bucket_split(b, maxlen);
+                else if (maxlen < (apr_off_t)b->length) {
+                    apr_bucket_split(b, (apr_size_t)maxlen);
                     maxlen = 0;
                 }
                 else {
@@ -671,17 +1287,16 @@ apr_status_t h2_brigade_concat_length(apr_bucket_brigade *dest,
                                       apr_bucket_brigade *src,
                                       apr_off_t length)
 {
-    apr_bucket *b, *next;
+    apr_bucket *b;
     apr_off_t remain = length;
     apr_status_t status = APR_SUCCESS;
     
-    for (b = APR_BRIGADE_FIRST(src); 
-         b != APR_BRIGADE_SENTINEL(src);
-         b = next) {
-        next = APR_BUCKET_NEXT(b);
+    while (!APR_BRIGADE_EMPTY(src)) {
+        b = APR_BRIGADE_FIRST(src); 
         
         if (APR_BUCKET_IS_METADATA(b)) {
-            /* fall through */
+            APR_BUCKET_REMOVE(b);
+            APR_BRIGADE_INSERT_TAIL(dest, b);
         }
         else {
             if (remain == b->length) {
@@ -704,10 +1319,10 @@ apr_status_t h2_brigade_concat_length(apr_bucket_brigade *dest,
                     apr_bucket_split(b, remain);
                 }
             }
+            APR_BUCKET_REMOVE(b);
+            APR_BRIGADE_INSERT_TAIL(dest, b);
+            remain -= b->length;
         }
-        APR_BUCKET_REMOVE(b);
-        APR_BRIGADE_INSERT_TAIL(dest, b);
-        remain -= b->length;
     }
     return status;
 }
@@ -852,7 +1467,7 @@ apr_status_t h2_util_bb_readx(apr_bucket_brigade *bb,
             
             if (data_len > avail) {
                 apr_bucket_split(b, avail);
-                data_len = avail;
+                data_len = (apr_size_t)avail;
             }
             
             if (consume) {
@@ -892,51 +1507,15 @@ apr_size_t h2_util_bucket_print(char *buffer, apr_size_t bmax,
         off += apr_snprintf(buffer+off, bmax-off, "%s", sep);
     }
     
-    if (APR_BUCKET_IS_METADATA(b)) {
-        if (APR_BUCKET_IS_EOS(b)) {
-            off += apr_snprintf(buffer+off, bmax-off, "eos");
-        }
-        else if (APR_BUCKET_IS_FLUSH(b)) {
-            off += apr_snprintf(buffer+off, bmax-off, "flush");
-        }
-        else if (AP_BUCKET_IS_EOR(b)) {
-            off += apr_snprintf(buffer+off, bmax-off, "eor");
-        }
-        else {
-            off += apr_snprintf(buffer+off, bmax-off, "meta(unknown)");
-        }
+    if (bmax <= off) {
+        return off;
     }
-    else {
-        const char *btype = "data";
-        if (APR_BUCKET_IS_FILE(b)) {
-            btype = "file";
-        }
-        else if (APR_BUCKET_IS_PIPE(b)) {
-            btype = "pipe";
-        }
-        else if (APR_BUCKET_IS_SOCKET(b)) {
-            btype = "socket";
-        }
-        else if (APR_BUCKET_IS_HEAP(b)) {
-            btype = "heap";
-        }
-        else if (APR_BUCKET_IS_TRANSIENT(b)) {
-            btype = "transient";
-        }
-        else if (APR_BUCKET_IS_IMMORTAL(b)) {
-            btype = "immortal";
-        }
-#if APR_HAS_MMAP
-        else if (APR_BUCKET_IS_MMAP(b)) {
-            btype = "mmap";
-        }
-#endif
-        else if (APR_BUCKET_IS_POOL(b)) {
-            btype = "pool";
-        }
-        
+    else if (APR_BUCKET_IS_METADATA(b)) {
+        off += apr_snprintf(buffer+off, bmax-off, "%s", b->type->name);
+    }
+    else if (bmax > off) {
         off += apr_snprintf(buffer+off, bmax-off, "%s[%ld]", 
-                            btype, 
+                            b->type->name, 
                             (long)(b->length == ((apr_size_t)-1)? 
                                    -1 : b->length));
     }
@@ -951,20 +1530,24 @@ apr_size_t h2_util_bb_print(char *buffer, apr_size_t bmax,
     const char *sp = "";
     apr_bucket *b;
     
-    if (bb) {
-        memset(buffer, 0, bmax--);
-        off += apr_snprintf(buffer+off, bmax-off, "%s(", tag);
-        for (b = APR_BRIGADE_FIRST(bb); 
-             bmax && (b != APR_BRIGADE_SENTINEL(bb));
-             b = APR_BUCKET_NEXT(b)) {
-            
-            off += h2_util_bucket_print(buffer+off, bmax-off, b, sp);
-            sp = " ";
+    if (bmax > 1) {
+        if (bb) {
+            memset(buffer, 0, bmax--);
+            off += apr_snprintf(buffer+off, bmax-off, "%s(", tag);
+            for (b = APR_BRIGADE_FIRST(bb); 
+                 (bmax > off) && (b != APR_BRIGADE_SENTINEL(bb));
+                 b = APR_BUCKET_NEXT(b)) {
+                
+                off += h2_util_bucket_print(buffer+off, bmax-off, b, sp);
+                sp = " ";
+            }
+            if (bmax > off) {
+                off += apr_snprintf(buffer+off, bmax-off, ")%s", sep);
+            }
         }
-        off += apr_snprintf(buffer+off, bmax-off, ")%s", sep);
-    }
-    else {
-        off += apr_snprintf(buffer+off, bmax-off, "%s(null)%s", tag, sep);
+        else {
+            off += apr_snprintf(buffer+off, bmax-off, "%s(null)%s", tag, sep);
+        }
     }
     return off;
 }
@@ -972,7 +1555,8 @@ apr_size_t h2_util_bb_print(char *buffer, apr_size_t bmax,
 apr_status_t h2_append_brigade(apr_bucket_brigade *to,
                                apr_bucket_brigade *from, 
                                apr_off_t *plen,
-                               int *peos)
+                               int *peos,
+                               h2_bucket_gate *should_append)
 {
     apr_bucket *e;
     apr_off_t len = 0, remain = *plen;
@@ -983,7 +1567,10 @@ apr_status_t h2_append_brigade(apr_bucket_brigade *to,
     while (!APR_BRIGADE_EMPTY(from)) {
         e = APR_BRIGADE_FIRST(from);
         
-        if (APR_BUCKET_IS_METADATA(e)) {
+        if (!should_append(e)) {
+            goto leave;
+        }
+        else if (APR_BUCKET_IS_METADATA(e)) {
             if (APR_BUCKET_IS_EOS(e)) {
                 *peos = 1;
                 apr_bucket_delete(e);
@@ -1002,9 +1589,9 @@ apr_status_t h2_append_brigade(apr_bucket_brigade *to,
             
             if (remain < e->length) {
                 if (remain <= 0) {
-                    return APR_SUCCESS;
+                    goto leave;
                 }
-                apr_bucket_split(e, remain);
+                apr_bucket_split(e, (apr_size_t)remain);
             }
         }
         
@@ -1013,7 +1600,7 @@ apr_status_t h2_append_brigade(apr_bucket_brigade *to,
         len += e->length;
         remain -= e->length;
     }
-    
+leave:
     *plen = len;
     return APR_SUCCESS;
 }
@@ -1061,89 +1648,150 @@ static int count_header(void *ctx, const char *key, const char *value)
     return 1;
 }
 
-#define NV_ADD_LIT_CS(nv, k, v)     add_header(nv, k, sizeof(k) - 1, v, strlen(v))
-#define NV_ADD_CS_CS(nv, k, v)      add_header(nv, k, strlen(k), v, strlen(v))
-
-static int add_header(h2_ngheader *ngh, 
-                      const char *key, size_t key_len,
-                      const char *value, size_t val_len)
+static const char *inv_field_name_chr(const char *token)
 {
-    nghttp2_nv *nv = &ngh->nv[ngh->nvlen++];
-    
+    const char *p = ap_scan_http_token(token);
+    if (p == token && *p == ':') {
+        p = ap_scan_http_token(++p);
+    }
+    return (p && *p)? p : NULL;
+}
+
+static const char *inv_field_value_chr(const char *token)
+{
+    const char *p = ap_scan_http_field_content(token);
+    return (p && *p)? p : NULL;
+}
+
+typedef struct ngh_ctx {
+    apr_pool_t *p;
+    int unsafe;
+    h2_ngheader *ngh;
+    apr_status_t status;
+} ngh_ctx;
+
+static int add_header(ngh_ctx *ctx, const char *key, const char *value)
+{
+    nghttp2_nv *nv = &(ctx->ngh)->nv[(ctx->ngh)->nvlen++];
+    const char *p;
+
+    if (!ctx->unsafe) {
+        if ((p = inv_field_name_chr(key))) {
+            ap_log_perror(APLOG_MARK, APLOG_TRACE1, APR_EINVAL, ctx->p,
+                          "h2_request: head field '%s: %s' has invalid char %s", 
+                          key, value, p);
+            ctx->status = APR_EINVAL;
+            return 0;
+        }
+        if ((p = inv_field_value_chr(value))) {
+            ap_log_perror(APLOG_MARK, APLOG_TRACE1, APR_EINVAL, ctx->p,
+                          "h2_request: head field '%s: %s' has invalid char %s", 
+                          key, value, p);
+            ctx->status = APR_EINVAL;
+            return 0;
+        }
+    }
     nv->name = (uint8_t*)key;
-    nv->namelen = key_len;
+    nv->namelen = strlen(key);
     nv->value = (uint8_t*)value;
-    nv->valuelen = val_len;
+    nv->valuelen = strlen(value);
+    
     return 1;
 }
 
 static int add_table_header(void *ctx, const char *key, const char *value)
 {
     if (!h2_util_ignore_header(key)) {
-        add_header(ctx, key, strlen(key), value, strlen(value));
+        add_header(ctx, key, value);
     }
     return 1;
 }
 
-
-h2_ngheader *h2_util_ngheader_make(apr_pool_t *p, apr_table_t *header)
+static apr_status_t ngheader_create(h2_ngheader **ph, apr_pool_t *p, 
+                                    int unsafe, size_t key_count, 
+                                    const char *keys[], const char *values[],
+                                    apr_table_t *headers)
 {
-    h2_ngheader *ngh;
-    size_t n;
+    ngh_ctx ctx;
+    size_t n, i;
     
-    n = 0;
-    apr_table_do(count_header, &n, header, NULL);
+    ctx.p = p;
+    ctx.unsafe = unsafe;
     
-    ngh = apr_pcalloc(p, sizeof(h2_ngheader));
-    ngh->nv =  apr_pcalloc(p, n * sizeof(nghttp2_nv));
-    apr_table_do(add_table_header, ngh, header, NULL);
+    n = key_count;
+    apr_table_do(count_header, &n, headers, NULL);
+    
+    *ph = ctx.ngh = apr_pcalloc(p, sizeof(h2_ngheader));
+    if (!ctx.ngh) {
+        return APR_ENOMEM;
+    }
+    
+    ctx.ngh->nv =  apr_pcalloc(p, n * sizeof(nghttp2_nv));
+    if (!ctx.ngh->nv) {
+        return APR_ENOMEM;
+    }
+    
+    ctx.status = APR_SUCCESS;
+    for (i = 0; i < key_count; ++i) {
+        if (!add_header(&ctx, keys[i], values[i])) {
+            return ctx.status;
+        }
+    }
+    
+    apr_table_do(add_table_header, &ctx, headers, NULL);
 
-    return ngh;
+    return ctx.status;
 }
 
-h2_ngheader *h2_util_ngheader_make_res(apr_pool_t *p, 
-                                       int http_status, 
-                                       apr_table_t *header)
+static int is_unsafe(h2_headers *h)
 {
-    h2_ngheader *ngh;
-    size_t n;
-    
-    n = 1;
-    apr_table_do(count_header, &n, header, NULL);
-    
-    ngh = apr_pcalloc(p, sizeof(h2_ngheader));
-    ngh->nv =  apr_pcalloc(p, n * sizeof(nghttp2_nv));
-    NV_ADD_LIT_CS(ngh, ":status", apr_psprintf(p, "%d", http_status));
-    apr_table_do(add_table_header, ngh, header, NULL);
-
-    return ngh;
+    const char *v = apr_table_get(h->notes, H2_HDR_CONFORMANCE);
+    return (v && !strcmp(v, H2_HDR_CONFORMANCE_UNSAFE));
 }
 
-h2_ngheader *h2_util_ngheader_make_req(apr_pool_t *p, 
-                                       const struct h2_request *req)
+apr_status_t h2_res_create_ngtrailer(h2_ngheader **ph, apr_pool_t *p, 
+                                    h2_headers *headers)
+{
+    return ngheader_create(ph, p, is_unsafe(headers), 
+                           0, NULL, NULL, headers->headers);
+}
+                                     
+apr_status_t h2_res_create_ngheader(h2_ngheader **ph, apr_pool_t *p,
+                                    h2_headers *headers) 
+{
+    const char *keys[] = {
+        ":status"
+    };
+    const char *values[] = {
+        apr_psprintf(p, "%d", headers->status)
+    };
+    return ngheader_create(ph, p, is_unsafe(headers),  
+                           H2_ALEN(keys), keys, values, headers->headers);
+}
+
+apr_status_t h2_req_create_ngheader(h2_ngheader **ph, apr_pool_t *p, 
+                                    const struct h2_request *req)
 {
     
-    h2_ngheader *ngh;
-    size_t n;
+    const char *keys[] = {
+        ":scheme", 
+        ":authority", 
+        ":path", 
+        ":method", 
+    };
+    const char *values[] = {
+        req->scheme,
+        req->authority, 
+        req->path, 
+        req->method, 
+    };
     
-    AP_DEBUG_ASSERT(req);
-    AP_DEBUG_ASSERT(req->scheme);
-    AP_DEBUG_ASSERT(req->authority);
-    AP_DEBUG_ASSERT(req->path);
-    AP_DEBUG_ASSERT(req->method);
+    ap_assert(req->scheme);
+    ap_assert(req->authority);
+    ap_assert(req->path);
+    ap_assert(req->method);
 
-    n = 4;
-    apr_table_do(count_header, &n, req->headers, NULL);
-    
-    ngh = apr_pcalloc(p, sizeof(h2_ngheader));
-    ngh->nv =  apr_pcalloc(p, n * sizeof(nghttp2_nv));
-    NV_ADD_LIT_CS(ngh, ":scheme", req->scheme);
-    NV_ADD_LIT_CS(ngh, ":authority", req->authority);
-    NV_ADD_LIT_CS(ngh, ":path", req->path);
-    NV_ADD_LIT_CS(ngh, ":method", req->method);
-    apr_table_do(add_table_header, ngh, req->headers, NULL);
-
-    return ngh;
+    return ngheader_create(ph, p, 0, H2_ALEN(keys), keys, values, req->headers);
 }
 
 /*******************************************************************************
@@ -1160,7 +1808,6 @@ typedef struct {
 #define H2_LIT_ARGS(a)      (a),H2_ALEN(a)
 
 static literal IgnoredRequestHeaders[] = {
-    H2_DEF_LITERAL("expect"),
     H2_DEF_LITERAL("upgrade"),
     H2_DEF_LITERAL("connection"),
     H2_DEF_LITERAL("keep-alive"),
@@ -1194,15 +1841,12 @@ static literal IgnoredResponseTrailers[] = {
     H2_DEF_LITERAL("www-authenticate"),
     H2_DEF_LITERAL("proxy-authenticate"),
 };
-static literal IgnoredProxyRespHds[] = {
-    H2_DEF_LITERAL("alt-svc"),
-};
 
 static int ignore_header(const literal *lits, size_t llen,
                          const char *name, size_t nlen)
 {
     const literal *lit;
-    int i;
+    size_t i;
     
     for (i = 0; i < llen; ++i) {
         lit = &lits[i];
@@ -1229,13 +1873,7 @@ int h2_res_ignore_trailer(const char *name, size_t len)
     return ignore_header(H2_LIT_ARGS(IgnoredResponseTrailers), name, len);
 }
 
-int h2_proxy_res_ignore_header(const char *name, size_t len)
-{
-    return (h2_req_ignore_header(name, len) 
-            || ignore_header(H2_LIT_ARGS(IgnoredProxyRespHds), name, len));
-}
-
-apr_status_t h2_headers_add_h1(apr_table_t *headers, apr_pool_t *pool, 
+apr_status_t h2_req_add_header(apr_table_t *headers, apr_pool_t *pool, 
                                const char *name, size_t nlen,
                                const char *value, size_t vlen)
 {
@@ -1276,13 +1914,12 @@ apr_status_t h2_headers_add_h1(apr_table_t *headers, apr_pool_t *pool,
  * h2 request handling
  ******************************************************************************/
 
-h2_request *h2_req_createn(int id, apr_pool_t *pool, const char *method, 
-                           const char *scheme, const char *authority, 
-                           const char *path, apr_table_t *header, int serialize)
+h2_request *h2_req_create(int id, apr_pool_t *pool, const char *method, 
+                          const char *scheme, const char *authority, 
+                          const char *path, apr_table_t *header, int serialize)
 {
     h2_request *req = apr_pcalloc(pool, sizeof(h2_request));
     
-    req->id             = id;
     req->method         = method;
     req->scheme         = scheme;
     req->authority      = authority;
@@ -1292,49 +1929,6 @@ h2_request *h2_req_createn(int id, apr_pool_t *pool, const char *method,
     req->serialize      = serialize;
     
     return req;
-}
-
-h2_request *h2_req_create(int id, apr_pool_t *pool, int serialize)
-{
-    return h2_req_createn(id, pool, NULL, NULL, NULL, NULL, NULL, serialize);
-}
-
-typedef struct {
-    apr_table_t *headers;
-    apr_pool_t *pool;
-} h1_ctx;
-
-static int set_h1_header(void *ctx, const char *key, const char *value)
-{
-    h1_ctx *x = ctx;
-    size_t klen = strlen(key);
-    if (!h2_req_ignore_header(key, klen)) {
-        h2_headers_add_h1(x->headers, x->pool, key, klen, value, strlen(value));
-    }
-    return 1;
-}
-
-apr_status_t h2_req_make(h2_request *req, apr_pool_t *pool,
-                         const char *method, const char *scheme, 
-                         const char *authority, const char *path, 
-                         apr_table_t *headers)
-{
-    h1_ctx x;
-
-    req->method    = method;
-    req->scheme    = scheme;
-    req->authority = authority;
-    req->path      = path;
-
-    AP_DEBUG_ASSERT(req->scheme);
-    AP_DEBUG_ASSERT(req->authority);
-    AP_DEBUG_ASSERT(req->path);
-    AP_DEBUG_ASSERT(req->method);
-
-    x.pool = pool;
-    x.headers = req->headers;
-    apr_table_do(set_h1_header, &x, headers, NULL);
-    return APR_SUCCESS;
 }
 
 /*******************************************************************************
@@ -1423,11 +2017,11 @@ int h2_util_frame_print(const nghttp2_frame *frame, char *buffer, size_t maxlen)
 /*******************************************************************************
  * push policy
  ******************************************************************************/
-void h2_push_policy_determine(struct h2_request *req, apr_pool_t *p, int push_enabled)
+int h2_push_policy_determine(apr_table_t *headers, apr_pool_t *p, int push_enabled)
 {
     h2_push_policy policy = H2_PUSH_NONE;
     if (push_enabled) {
-        const char *val = apr_table_get(req->headers, "accept-push-policy");
+        const char *val = apr_table_get(headers, "accept-push-policy");
         if (val) {
             if (ap_find_token(p, val, "fast-load")) {
                 policy = H2_PUSH_FAST_LOAD;
@@ -1450,6 +2044,6 @@ void h2_push_policy_determine(struct h2_request *req, apr_pool_t *p, int push_en
             policy = H2_PUSH_DEFAULT;
         }
     }
-    req->push_policy = policy;
+    return policy;
 }
 

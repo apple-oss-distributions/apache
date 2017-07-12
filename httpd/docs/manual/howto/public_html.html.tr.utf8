@@ -24,12 +24,12 @@
 <a href="http://www.apache.org/">Apache</a> &gt; <a href="http://httpd.apache.org/">HTTP Sunucusu</a> &gt; <a href="http://httpd.apache.org/docs/">Belgeleme</a> &gt; <a href="../">Sürüm 2.4</a> &gt; <a href="./">Nasıllar ve Öğreticiler</a></div><div id="page-content"><div id="preamble"><h1>Kullanıcı Dizinleri (public_html)</h1>
 <div class="toplang">
 <p><span>Mevcut Diller: </span><a href="../en/howto/public_html.html" hreflang="en" rel="alternate" title="English">&nbsp;en&nbsp;</a> |
+<a href="../es/howto/public_html.html" hreflang="es" rel="alternate" title="Español">&nbsp;es&nbsp;</a> |
 <a href="../fr/howto/public_html.html" hreflang="fr" rel="alternate" title="Français">&nbsp;fr&nbsp;</a> |
 <a href="../ja/howto/public_html.html" hreflang="ja" rel="alternate" title="Japanese">&nbsp;ja&nbsp;</a> |
 <a href="../ko/howto/public_html.html" hreflang="ko" rel="alternate" title="Korean">&nbsp;ko&nbsp;</a> |
 <a href="../tr/howto/public_html.html" title="Türkçe">&nbsp;tr&nbsp;</a></p>
 </div>
-<div class="outofdate">Bu çeviri güncel olmayabilir. Son değişiklikler için İngilizce sürüm geçerlidir.</div>
 
   <p>Çok kullanıcılı sistemlerde, <code class="directive"><a href="../mod/mod_userdir.html#userdir">UserDir</a></code> yönergesi ile her kullanıcının kendi ev dizininde
     bir sitesi olması sağlanabilir.
@@ -42,16 +42,16 @@
     kullanırken <code>conf/httpd.conf</code> öntanımlı yapılandırma
     dosyasındaki</p>
 
-    <div class="example"><p><code>
-      #Include conf/extra/httpd-userdir.conf
-    </code></p></div>
+    <pre class="prettyprint lang-config">#Include conf/extra/httpd-userdir.conf</pre>
+
 
   <p>satırını etkin hale getirip, gerekiyorsa <code>httpd-userdir.conf</code>
     dosyasını da düzenleyerek veya ana yapılandırma dosyasında bir
-    <code>Directory</code> bloğu içine uygun yönergeleri yerleştirerek bu
-    dizinlere erişimi etkin hale getirebilirsiniz.</p>
+    <code class="directive"><a href="../mod/core.html#directory">&lt;Directory&gt;</a></code> bloğu içine 
+    uygun yönergeleri yerleştirerek bu dizinlere erişimi etkin hale 
+    getirebilirsiniz.</p>
 </div>
-<div id="quickview"><ul id="toc"><li><img alt="" src="../images/down.gif" /> <a href="#related">Kullanıcı sayfaları dizinleri</a></li>
+<div id="quickview"><a href="https://www.apache.org/foundation/contributing.html" class="badge"><img src="https://www.apache.org/images/SupportApache-small.png" alt="Support Apache!" /></a><ul id="toc"><li><img alt="" src="../images/down.gif" /> <a href="#related">Kullanıcı sayfaları dizinleri</a></li>
 <li><img alt="" src="../images/down.gif" /> <a href="#userdir"><code>UserDir</code> ile dosya yolunun belirtilmesi</a></li>
 <li><img alt="" src="../images/down.gif" /> <a href="#redirect">Harici adreslere yönlendirme</a></li>
 <li><img alt="" src="../images/down.gif" /> <a href="#enable">Bu özelliği kullanacak kullanıcıların sınırlandırılması</a></li>
@@ -149,8 +149,8 @@
       işlevselliğin belli kullanıcılar dışında kullanılmamasını da
       sağlayabilirsiniz:</p>
 
-    <pre class="prettyprint lang-config">      UserDir disabled<br />
-      UserDir enabled orhan yasar</pre>
+    <pre class="prettyprint lang-config">UserDir disabled
+UserDir enabled orhan yasar</pre>
 
 
     <p>Daha fazla örnek için <code class="directive"><a href="../mod/mod_userdir.html#userdir">UserDir</a></code> yönergesinin açıklamasına bakabilirsiniz.</p>
@@ -197,6 +197,7 @@
   </div></div>
 <div class="bottomlang">
 <p><span>Mevcut Diller: </span><a href="../en/howto/public_html.html" hreflang="en" rel="alternate" title="English">&nbsp;en&nbsp;</a> |
+<a href="../es/howto/public_html.html" hreflang="es" rel="alternate" title="Español">&nbsp;es&nbsp;</a> |
 <a href="../fr/howto/public_html.html" hreflang="fr" rel="alternate" title="Français">&nbsp;fr&nbsp;</a> |
 <a href="../ja/howto/public_html.html" hreflang="ja" rel="alternate" title="Japanese">&nbsp;ja&nbsp;</a> |
 <a href="../ko/howto/public_html.html" hreflang="ko" rel="alternate" title="Korean">&nbsp;ko&nbsp;</a> |
@@ -219,7 +220,7 @@ var comments_identifier = 'http://httpd.apache.org/docs/2.4/howto/public_html.ht
     }
 })(window, document);
 //--><!]]></script></div><div id="footer">
-<p class="apache">Copyright 2016 The Apache Software Foundation.<br /><a href="http://www.apache.org/licenses/LICENSE-2.0">Apache License, Version 2.0</a> altında lisanslıdır.</p>
+<p class="apache">Copyright 2017 The Apache Software Foundation.<br /><a href="http://www.apache.org/licenses/LICENSE-2.0">Apache License, Version 2.0</a> altında lisanslıdır.</p>
 <p class="menu"><a href="../mod/">Modüller</a> | <a href="../mod/directives.html">Yönergeler</a> | <a href="http://wiki.apache.org/httpd/FAQ">SSS</a> | <a href="../glossary.html">Terimler</a> | <a href="../sitemap.html">Site Haritası</a></p></div><script type="text/javascript"><!--//--><![CDATA[//><!--
 if (typeof(prettyPrint) !== 'undefined') {
     prettyPrint();

@@ -166,6 +166,7 @@ static const char* really_last_key = "rewrite_really_last";
 #define RULEFLAG_DISCARDPATHINFO    (1<<15)
 #define RULEFLAG_QSDISCARD          (1<<16)
 #define RULEFLAG_END                (1<<17)
+#define RULEFLAG_ESCAPENOPLUS       (1<<18)
 #define RULEFLAG_QSLAST             (1<<19)
 
 /* return code of the rewrite rule
@@ -197,6 +198,7 @@ static const char* really_last_key = "rewrite_really_last";
 #define OPTION_INHERIT_DOWN_BEFORE  (1<<7)
 #define OPTION_IGNORE_INHERIT       (1<<8)
 #define OPTION_IGNORE_CONTEXT_INFO  (1<<9)
+#define OPTION_LEGACY_PREFIX_DOCROOT (1<<10)
 
 #ifndef RAND_MAX
 #define RAND_MAX 32767
@@ -317,6 +319,7 @@ typedef struct {
     data_item *cookie;               /* added cookies                         */
     int        skip;                 /* number of next rules to skip          */
     int        maxrounds;            /* limit on number of loops with N flag  */
+    char       *escapes;             /* specific backref escapes              */
 } rewriterule_entry;
 
 typedef struct {
@@ -417,7 +420,7 @@ static const char *rewritemap_mutex_type = "rewrite-map";
 /* Optional functions imported from mod_ssl when loaded: */
 static APR_OPTIONAL_FN_TYPE(ssl_var_lookup) *rewrite_ssl_lookup = NULL;
 static APR_OPTIONAL_FN_TYPE(ssl_is_https) *rewrite_is_https = NULL;
-static char *escape_uri(apr_pool_t *p, const char *path);
+static char *escape_backref(apr_pool_t *p, const char *path, const char *escapeme, int noplus);
 
 /*
  * +-------------------------------------------------------+
@@ -634,24 +637,44 @@ static APR_INLINE unsigned char *c2x(unsigned what, unsigned char prefix,
 }
 
 /*
- * Escapes a uri in a similar way as php's urlencode does.
+ * Escapes a backreference in a similar way as php's urlencode does.
  * Based on ap_os_escape_path in server/util.c
  */
-static char *escape_uri(apr_pool_t *p, const char *path) {
+static char *escape_backref(apr_pool_t *p, const char *path, const char *escapeme, int noplus) {
     char *copy = apr_palloc(p, 3 * strlen(path) + 3);
     const unsigned char *s = (const unsigned char *)path;
     unsigned char *d = (unsigned char *)copy;
     unsigned c;
 
     while ((c = *s)) {
-        if (apr_isalnum(c) || c == '_') {
-            *d++ = c;
+        if (!escapeme) { 
+            if (apr_isalnum(c) || c == '_') {
+                *d++ = c;
+            }
+            else if (c == ' ' && !noplus) {
+                *d++ = '+';
+            }
+            else {
+                d = c2x(c, '%', d);
+            }
         }
-        else if (c == ' ') {
-            *d++ = '+';
-        }
-        else {
-            d = c2x(c, '%', d);
+        else { 
+            const char *esc = escapeme;
+            while (*esc) { 
+                if (c == *esc) { 
+                    if (c == ' ' && !noplus) { 
+                        *d++ = '+';
+                    }
+                    else { 
+                        d = c2x(c, '%', d);
+                    }
+                    break;
+                }
+                ++esc;
+            }
+            if (!*esc) { 
+                *d++ = c;
+            }
         }
         ++s;
     }
@@ -842,8 +865,15 @@ static void reduce_uri(request_rec *r)
 
         /* now check whether we could reduce it to a local path... */
         if (ap_matches_request_vhost(r, host, port)) {
+            rewrite_server_conf *conf = 
+                ap_get_module_config(r->server->module_config, &rewrite_module);
             rewritelog((r, 3, NULL, "reduce %s -> %s", r->filename, url));
             r->filename = apr_pstrdup(r->pool, url);
+
+            /* remember that the uri was reduced */
+            if(!(conf->options & OPTION_LEGACY_PREFIX_DOCROOT)) {
+                apr_table_setn(r->notes, "mod_rewrite_uri_reduced", "true");
+            }
         }
     }
 
@@ -2390,7 +2420,7 @@ static char *do_expand(char *input, rewrite_ctx *ctx, rewriterule_entry *entry)
                     /* escape the backreference */
                     char *tmp2, *tmp;
                     tmp = apr_pstrmemdup(pool, bri->source + bri->regmatch[n].rm_so, span);
-                    tmp2 = escape_uri(pool, tmp);
+                    tmp2 = escape_backref(pool, tmp, entry->escapes, entry->flags & RULEFLAG_ESCAPENOPLUS);
                     rewritelog((ctx->r, 5, ctx->perdir, "escaping backreference '%s' to '%s'",
                             tmp, tmp2));
 
@@ -2985,6 +3015,9 @@ static const char *cmd_rewriteoptions(cmd_parms *cmd,
         else if (!strcasecmp(w, "ignorecontextinfo")) {
             options |= OPTION_IGNORE_CONTEXT_INFO;
         }
+        else if (!strcasecmp(w, "legacyprefixdocroot")) {
+            options |= OPTION_LEGACY_PREFIX_DOCROOT;
+        }
         else {
             return apr_pstrcat(cmd->pool, "RewriteOptions: unknown option '",
                                w, "'", NULL);
@@ -3446,6 +3479,12 @@ static const char *cmd_rewriterule_setflag(apr_pool_t *p, void *_cfg,
     case 'B':
         if (!*key || !strcasecmp(key, "ackrefescaping")) {
             cfg->flags |= RULEFLAG_ESCAPEBACKREF;
+            if (val && *val) { 
+                cfg->escapes = val;
+            }
+        }
+        else if (!strcasecmp(key, "NP") || !strcasecmp(key, "ackrefernoplus")) { 
+            cfg->flags |= RULEFLAG_ESCAPENOPLUS;
         }
         else {
             ++error;
@@ -4077,7 +4116,7 @@ static int apply_rewrite_rule(rewriterule_entry *p, rewrite_ctx *ctx)
     /* Ok, we already know the pattern has matched, but we now
      * additionally have to check for all existing preconditions
      * (RewriteCond) which have to be also true. We do this at
-     * this very late stage to avoid unnessesary checks which
+     * this very late stage to avoid unnecessary checks which
      * would slow down the rewriting engine.
      */
     rewriteconds = p->rewriteconds;
@@ -4295,6 +4334,17 @@ static int apply_rewrite_list(request_rec *r, apr_array_header_t *rewriterules,
         rc = apply_rewrite_rule(p, ctx);
 
         if (rc) {
+
+            /* Catch looping rules with pathinfo growing unbounded */
+            if ( strlen( r->filename ) > 2*r->server->limit_req_line ) {
+                ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
+                              "RewriteRule '%s' and URI '%s' "
+                              "exceeded maximum length (%d)", 
+                              p->pattern, r->uri, 2*r->server->limit_req_line );
+                r->status = HTTP_INTERNAL_SERVER_ERROR;
+                return ACTION_STATUS;
+            }
+
             /* Regardless of what we do next, we've found a match. Check to see
              * if any of the request header fields were involved, and add them
              * to the Vary field of the response.
@@ -4738,6 +4788,7 @@ static int hook_uri2file(request_rec *r)
         }
         else {
             /* it was finally rewritten to a local path */
+            const char *uri_reduced = NULL;
 
             /* expand "/~user" prefix */
 #if APR_HAS_USER
@@ -4773,7 +4824,12 @@ static int hook_uri2file(request_rec *r)
              * because we only do stat() on the first directory
              * and this gets cached by the kernel for along time!
              */
-            if (!prefix_stat(r->filename, r->pool)) {
+
+            if(!(conf->options & OPTION_LEGACY_PREFIX_DOCROOT)) {
+                uri_reduced = apr_table_get(r->notes, "mod_rewrite_uri_reduced");
+            }
+
+            if (!prefix_stat(r->filename, r->pool) || uri_reduced != NULL) {
                 int res;
                 char *tmp = r->uri;
 
@@ -4871,7 +4927,7 @@ static int hook_fixup(request_rec *r)
 
     /*
      *  Do the Options check after engine check, so
-     *  the user is able to explicitely turn RewriteEngine Off.
+     *  the user is able to explicitly turn RewriteEngine Off.
      */
     if (!(ap_allow_options(r) & (OPT_SYM_LINKS | OPT_SYM_OWNER))) {
         /* FollowSymLinks is mandatory! */
@@ -4886,7 +4942,7 @@ static int hook_fixup(request_rec *r)
     /*
      *  remember the current filename before rewriting for later check
      *  to prevent deadlooping because of internal redirects
-     *  on final URL/filename which can be equal to the inital one.
+     *  on final URL/filename which can be equal to the initial one.
      *  also, we'll restore original r->filename if we decline this
      *  request
      */

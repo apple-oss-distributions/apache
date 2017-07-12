@@ -41,13 +41,6 @@
         <p>This module relies on <a href="http://nghttp2.org/">libnghttp2</a>
         to provide the core http/2 engine.</p>
         
-        <div class="warning"><h3>Warning</h3>
-            <p>This module is experimental. Its behaviors, directives, and 
-                defaults are subject to more change from release to 
-                release relative to other standard modules. Users are encouraged to 
-                consult the "CHANGES" file for potential updates.</p>
-        </div>
-        
         <p>You must enable HTTP/2 via <code class="directive"><a href="../mod/core.html#protocols">Protocols</a></code>
         in order to use the functionality described in this document. The
         HTTP/2 protocol <a href="https://http2.github.io/faq/#does-http2-require-encryption">does not require</a> the use of encryption so two schemes are available:
@@ -77,12 +70,14 @@
         for any doubt about the protocol.</p>
         
     </div>
-<div id="quickview"><h3>Topics</h3>
+<div id="quickview"><a href="https://www.apache.org/foundation/contributing.html" class="badge"><img src="https://www.apache.org/images/SupportApache-small.png" alt="Support Apache!" /></a><h3>Topics</h3>
 <ul id="topics">
 <li><img alt="" src="../images/down.gif" /> <a href="#how-it-works">How it works</a></li>
 </ul><h3 class="directives">Directives</h3>
 <ul id="toc">
+<li><img alt="" src="../images/down.gif" /> <a href="#h2copyfiles">H2CopyFiles</a></li>
 <li><img alt="" src="../images/down.gif" /> <a href="#h2direct">H2Direct</a></li>
+<li><img alt="" src="../images/down.gif" /> <a href="#h2earlyhints">H2EarlyHints</a></li>
 <li><img alt="" src="../images/down.gif" /> <a href="#h2maxsessionstreams">H2MaxSessionStreams</a></li>
 <li><img alt="" src="../images/down.gif" /> <a href="#h2maxworkeridleseconds">H2MaxWorkerIdleSeconds</a></li>
 <li><img alt="" src="../images/down.gif" /> <a href="#h2maxworkers">H2MaxWorkers</a></li>
@@ -91,8 +86,8 @@
 <li><img alt="" src="../images/down.gif" /> <a href="#h2push">H2Push</a></li>
 <li><img alt="" src="../images/down.gif" /> <a href="#h2pushdiarysize">H2PushDiarySize</a></li>
 <li><img alt="" src="../images/down.gif" /> <a href="#h2pushpriority">H2PushPriority</a></li>
+<li><img alt="" src="../images/down.gif" /> <a href="#h2pushresource">H2PushResource</a></li>
 <li><img alt="" src="../images/down.gif" /> <a href="#h2serializeheaders">H2SerializeHeaders</a></li>
-<li><img alt="" src="../images/down.gif" /> <a href="#h2sessionextrafiles">H2SessionExtraFiles</a></li>
 <li><img alt="" src="../images/down.gif" /> <a href="#h2streammaxmemsize">H2StreamMaxMemSize</a></li>
 <li><img alt="" src="../images/down.gif" /> <a href="#h2tlscooldownsecs">H2TLSCoolDownSecs</a></li>
 <li><img alt="" src="../images/down.gif" /> <a href="#h2tlswarmupsize">H2TLSWarmUpSize</a></li>
@@ -164,17 +159,6 @@
             the connection will buffer this amount of data and then suspend the
             H2Worker.
         </p>
-        <p>
-            If you serve a lot of static files, <code class="directive"><a href="#h2sessionextrafiles">H2SessionExtraFiles</a></code>
-            is of interest. This tells the server how many file handles per
-            HTTP/2 connection it is allowed to waste for better performance. Because
-            when a request produces a static file as the response, the file handle
-            gets passed around and is buffered and not the file contents. That allows
-            to serve many large files without wasting memory or copying data 
-            unnecessarily. However file handles are a limited resource for a process,
-            and if too many are used this way, requests may fail under load as
-            the amount of open handles has been exceeded.
-        </p>
     
     
     <h3><a name="misdirected" id="misdirected">Multiple Hosts and Misdirected Requests</a></h3>
@@ -228,6 +212,38 @@
     
     </div>
 <div class="top"><a href="#page-header"><img alt="top" src="../images/up.gif" /></a></div>
+<div class="directive-section"><h2><a name="H2CopyFiles" id="H2CopyFiles">H2CopyFiles</a> <a name="h2copyfiles" id="h2copyfiles">Directive</a></h2>
+<table class="directive">
+<tr><th><a href="directive-dict.html#Description">Description:</a></th><td>Determine file handling in responses</td></tr>
+<tr><th><a href="directive-dict.html#Syntax">Syntax:</a></th><td><code>H2CopyFiles on|off</code></td></tr>
+<tr><th><a href="directive-dict.html#Default">Default:</a></th><td><code>H2CopyFiles off</code></td></tr>
+<tr><th><a href="directive-dict.html#Context">Context:</a></th><td>server config, virtual host, directory, .htaccess</td></tr>
+<tr><th><a href="directive-dict.html#Status">Status:</a></th><td>Extension</td></tr>
+<tr><th><a href="directive-dict.html#Module">Module:</a></th><td>mod_http2</td></tr>
+<tr><th><a href="directive-dict.html#Compatibility">Compatibility:</a></th><td>Available in version 2.4.24 and later.</td></tr>
+</table>
+            <p>
+                This directive influences how file content is handled in
+                responses. When <code>off</code>, which is the default, file handles
+                are passed from the requestion processing down to the main
+                connection, using the usual Apache setaside handling for
+                managing the lifetime of the file.
+            </p>
+            <p>
+                When set to <code>on</code>, file content is copied while the
+                request is still being processed and the buffered data is passed
+                on to the main connection. This is better if a third party
+                module is injecting files with different lifetimes into the response. 
+            </p>
+            <p>
+                An example for such a module is <code>mod_wsgi</code> that may place
+                Python file handles into the response. Those files get close down when
+                Python thinks processing has finished. That may be well before
+                <code class="module"><a href="../mod/mod_http2.html">mod_http2</a></code> is done with them.
+            </p>
+        
+</div>
+<div class="top"><a href="#page-header"><img alt="top" src="../images/up.gif" /></a></div>
 <div class="directive-section"><h2><a name="H2Direct" id="H2Direct">H2Direct</a> <a name="h2direct" id="h2direct">Directive</a></h2>
 <table class="directive">
 <tr><th><a href="directive-dict.html#Description">Description:</a></th><td>H2 Direct Protocol Switch</td></tr>
@@ -271,6 +287,31 @@
             </p>
             <div class="example"><h3>Example</h3><pre class="prettyprint lang-config">H2Direct on</pre>
 </div>
+        
+</div>
+<div class="top"><a href="#page-header"><img alt="top" src="../images/up.gif" /></a></div>
+<div class="directive-section"><h2><a name="H2EarlyHints" id="H2EarlyHints">H2EarlyHints</a> <a name="h2earlyhints" id="h2earlyhints">Directive</a></h2>
+<table class="directive">
+<tr><th><a href="directive-dict.html#Description">Description:</a></th><td>Determine sending of 103 status codes</td></tr>
+<tr><th><a href="directive-dict.html#Syntax">Syntax:</a></th><td><code>H2EarlyHints on|off</code></td></tr>
+<tr><th><a href="directive-dict.html#Default">Default:</a></th><td><code>H2EarlyHints off</code></td></tr>
+<tr><th><a href="directive-dict.html#Context">Context:</a></th><td>server config, virtual host</td></tr>
+<tr><th><a href="directive-dict.html#Status">Status:</a></th><td>Extension</td></tr>
+<tr><th><a href="directive-dict.html#Module">Module:</a></th><td>mod_http2</td></tr>
+<tr><th><a href="directive-dict.html#Compatibility">Compatibility:</a></th><td>Available in version 2.4.24 and later.</td></tr>
+</table>
+            <p>
+                This setting controls if HTTP status 103 interim responses are
+                forwarded to the client or not. By default, this is currently 
+                not the case since a range of clients still have trouble with
+                unexpected interim responses.
+            </p>
+            <p>
+                When set to <code>on</code>, PUSH resources announced with
+                <code>H2PushResource</code> will trigger an interim 103 response
+                before the final response. The 103 response will carry <code>Link</code>
+                headers that advise the <code>preload</code> of such resources. 
+            </p>
         
 </div>
 <div class="top"><a href="#page-header"><img alt="top" src="../images/up.gif" /></a></div>
@@ -405,9 +446,7 @@
 </table>
             <p>
                 This directive toggles the usage of the HTTP/2 server push 
-                protocol feature. This should be used inside a 
-                <code class="directive"><a href="../mod/core.html#virtualhost">&lt;VirtualHost&gt;</a></code> 
-                section to enable direct HTTP/2 communication for that virtual host. 
+                protocol feature.
             </p>
             <p>
                 The HTTP/2 protocol allows the server to push other resources to
@@ -607,6 +646,41 @@ H2PushPriority text/css   interleaved      # weight 256 default</pre>
         
 </div>
 <div class="top"><a href="#page-header"><img alt="top" src="../images/up.gif" /></a></div>
+<div class="directive-section"><h2><a name="H2PushResource" id="H2PushResource">H2PushResource</a> <a name="h2pushresource" id="h2pushresource">Directive</a></h2>
+<table class="directive">
+<tr><th><a href="directive-dict.html#Description">Description:</a></th><td>Declares resources for early pushing to the client</td></tr>
+<tr><th><a href="directive-dict.html#Syntax">Syntax:</a></th><td><code>H2PushResource [add] path [critical]</code></td></tr>
+<tr><th><a href="directive-dict.html#Context">Context:</a></th><td>server config, virtual host, directory, .htaccess</td></tr>
+<tr><th><a href="directive-dict.html#Status">Status:</a></th><td>Extension</td></tr>
+<tr><th><a href="directive-dict.html#Module">Module:</a></th><td>mod_http2</td></tr>
+<tr><th><a href="directive-dict.html#Compatibility">Compatibility:</a></th><td>Available in version 2.4.24 and later.</td></tr>
+</table>
+            <p>
+                When added to a directory/location HTTP/2 PUSHes will be attempted
+                for all paths added via this directive. This directive can be used
+                several times for the same location.
+            </p>
+            <p>
+                This directive pushes resources much earlier than adding 
+                <code>Link</code> headers via <code class="module"><a href="../mod/mod_headers.html">mod_headers</a></code>.
+                <code class="module"><a href="../mod/mod_http2.html">mod_http2</a></code> announces these resources in a
+                <code>103 Early Hints</code> interim response to the client.
+                That means that clients not supporting PUSH will still get
+                early preload hints.
+            </p>
+            <p>
+                In contrast to setting <code>Link</code> response headers 
+                via <code class="module"><a href="../mod/mod_headers.html">mod_headers</a></code>, this directive will only
+                take effect on HTTP/2 connections. 
+            </p>
+            <p>
+                By adding <code>critical</code> to such a resource, the server
+                will give processing it more preference and send its data, once
+                available, before the data from the main request.
+            </p>
+        
+</div>
+<div class="top"><a href="#page-header"><img alt="top" src="../images/up.gif" /></a></div>
 <div class="directive-section"><h2><a name="H2SerializeHeaders" id="H2SerializeHeaders">H2SerializeHeaders</a> <a name="h2serializeheaders" id="h2serializeheaders">Directive</a></h2>
 <table class="directive">
 <tr><th><a href="directive-dict.html#Description">Description:</a></th><td>Serialize Request/Response Processing Switch</td></tr>
@@ -628,41 +702,6 @@ H2PushPriority text/css   interleaved      # weight 256 default</pre>
             </p>
             <div class="example"><h3>Example</h3><pre class="prettyprint lang-config">H2SerializeHeaders on</pre>
 </div>
-        
-</div>
-<div class="top"><a href="#page-header"><img alt="top" src="../images/up.gif" /></a></div>
-<div class="directive-section"><h2><a name="H2SessionExtraFiles" id="H2SessionExtraFiles">H2SessionExtraFiles</a> <a name="h2sessionextrafiles" id="h2sessionextrafiles">Directive</a></h2>
-<table class="directive">
-<tr><th><a href="directive-dict.html#Description">Description:</a></th><td>Number of Extra File Handles</td></tr>
-<tr><th><a href="directive-dict.html#Syntax">Syntax:</a></th><td><code>H2SessionExtraFiles <em>n</em></code></td></tr>
-<tr><th><a href="directive-dict.html#Context">Context:</a></th><td>server config, virtual host</td></tr>
-<tr><th><a href="directive-dict.html#Status">Status:</a></th><td>Extension</td></tr>
-<tr><th><a href="directive-dict.html#Module">Module:</a></th><td>mod_http2</td></tr>
-</table>
-            <p>
-                This directive sets maximum number of <em>extra</em> file handles
-                a HTTP/2 session is allowed to use. A file handle is counted as
-                <em>extra</em> when it is transferred from a h2 worker thread to
-                the main HTTP/2 connection handling. This commonly happens when
-                serving static files.
-            </p><p>
-                Depending on the processing model configured on the server, the
-                number of connections times number of active streams may exceed
-                the number of file handles for the process. On the other hand,
-                converting every file into memory bytes early results in too 
-                many buffer writes. This option helps to mitigate that.
-            </p><p>
-                The number of file handles used by a server process is then in
-                the order of:
-            </p>
-            <pre>(h2_connections * extra_files) + (h2_max_worker)</pre>
-            <div class="example"><h3>Example</h3><pre class="prettyprint lang-config">H2SessionExtraFiles 10</pre>
-</div>
-            <p>
-                If nothing is configured, the module tries to make a conservative
-                guess how many files are safe to use. This depends largely on the 
-                MPM chosen.
-            </p>
         
 </div>
 <div class="top"><a href="#page-header"><img alt="top" src="../images/up.gif" /></a></div>
@@ -862,7 +901,7 @@ var comments_identifier = 'http://httpd.apache.org/docs/2.4/mod/mod_http2.html';
     }
 })(window, document);
 //--><!]]></script></div><div id="footer">
-<p class="apache">Copyright 2016 The Apache Software Foundation.<br />Licensed under the <a href="http://www.apache.org/licenses/LICENSE-2.0">Apache License, Version 2.0</a>.</p>
+<p class="apache">Copyright 2017 The Apache Software Foundation.<br />Licensed under the <a href="http://www.apache.org/licenses/LICENSE-2.0">Apache License, Version 2.0</a>.</p>
 <p class="menu"><a href="../mod/">Modules</a> | <a href="../mod/directives.html">Directives</a> | <a href="http://wiki.apache.org/httpd/FAQ">FAQ</a> | <a href="../glossary.html">Glossary</a> | <a href="../sitemap.html">Sitemap</a></p></div><script type="text/javascript"><!--//--><![CDATA[//><!--
 if (typeof(prettyPrint) !== 'undefined') {
     prettyPrint();

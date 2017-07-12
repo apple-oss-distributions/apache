@@ -18,7 +18,7 @@
  * mod_auth_digest: MD5 digest authentication
  *
  * Originally by Alexei Kosut <akosut@nueva.pvt.k12.ca.us>
- * Updated to RFC-2617 by Ronald Tschalär <ronald@innovation.ch>
+ * Updated to RFC-2617 by Ronald Tschalï¿½r <ronald@innovation.ch>
  * based on mod_auth, by Rob McCool and Robert S. Thau
  *
  * This module an updated version of modules/standard/mod_digest.c
@@ -232,7 +232,7 @@ static apr_status_t initialize_secret(server_rec *s)
 {
     apr_status_t status;
 
-    ap_log_error(APLOG_MARK, APLOG_NOTICE, 0, s, APLOGNO(01757)
+    ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s, APLOGNO(01757)
                  "generating secret for digest authentication ...");
 
 #if APR_HAS_RANDOM
@@ -261,6 +261,26 @@ static void log_error_and_cleanup(char *msg, apr_status_t sts, server_rec *s)
     cleanup_tables(NULL);
 }
 
+/* RMM helper functions that behave like single-step malloc/free. */
+
+static void *rmm_malloc(apr_rmm_t *rmm, apr_size_t size)
+{
+    apr_rmm_off_t offset = apr_rmm_malloc(rmm, size);
+
+    if (!offset) {
+        return NULL;
+    }
+
+    return apr_rmm_addr_get(rmm, offset);
+}
+
+static apr_status_t rmm_free(apr_rmm_t *rmm, void *alloc)
+{
+    apr_rmm_off_t offset = apr_rmm_offset_get(rmm, alloc);
+
+    return apr_rmm_free(rmm, offset);
+}
+
 #if APR_HAS_SHARED_MEMORY
 
 static int initialize_tables(server_rec *s, apr_pool_t *ctx)
@@ -279,9 +299,18 @@ static int initialize_tables(server_rec *s, apr_pool_t *ctx)
     client_shm_filename = ap_runtime_dir_relative(ctx, "authdigest_shm");
     client_shm_filename = ap_append_pid(ctx, client_shm_filename, ".");
 
-    /* Now create that segment */
-    sts = apr_shm_create(&client_shm, shmem_size,
-                        client_shm_filename, ctx);
+    /* Use anonymous shm by default, fall back on name-based. */
+    sts = apr_shm_create(&client_shm, shmem_size, NULL, ctx);
+    if (APR_STATUS_IS_ENOTIMPL(sts)) {
+        /* For a name-based segment, remove it first in case of a
+         * previous unclean shutdown. */
+        apr_shm_remove(client_shm_filename, ctx);
+
+        /* Now create that segment */
+        sts = apr_shm_create(&client_shm, shmem_size,
+                            client_shm_filename, ctx);
+    }
+
     if (APR_SUCCESS != sts) {
         ap_log_error(APLOG_MARK, APLOG_ERR, sts, s, APLOGNO(01762)
                      "Failed to create shared memory segment on file %s",
@@ -299,8 +328,8 @@ static int initialize_tables(server_rec *s, apr_pool_t *ctx)
         return !OK;
     }
 
-    client_list = apr_rmm_addr_get(client_rmm, apr_rmm_malloc(client_rmm, sizeof(*client_list) +
-                                                          sizeof(client_entry*)*num_buckets));
+    client_list = rmm_malloc(client_rmm, sizeof(*client_list) +
+                                         sizeof(client_entry *) * num_buckets);
     if (!client_list) {
         log_error_and_cleanup("failed to allocate shared memory", -1, s);
         return !OK;
@@ -322,7 +351,7 @@ static int initialize_tables(server_rec *s, apr_pool_t *ctx)
 
     /* setup opaque */
 
-    opaque_cntr = apr_rmm_addr_get(client_rmm, apr_rmm_malloc(client_rmm, sizeof(*opaque_cntr)));
+    opaque_cntr = rmm_malloc(client_rmm, sizeof(*opaque_cntr));
     if (opaque_cntr == NULL) {
         log_error_and_cleanup("failed to allocate shared memory", -1, s);
         return !OK;
@@ -339,7 +368,7 @@ static int initialize_tables(server_rec *s, apr_pool_t *ctx)
 
     /* setup one-time-nonce counter */
 
-    otn_counter = apr_rmm_addr_get(client_rmm, apr_rmm_malloc(client_rmm, sizeof(*otn_counter)));
+    otn_counter = rmm_malloc(client_rmm, sizeof(*otn_counter));
     if (otn_counter == NULL) {
         log_error_and_cleanup("failed to allocate shared memory", -1, s);
         return !OK;
@@ -779,7 +808,7 @@ static client_entry *get_client(unsigned long key, const request_rec *r)
  * last entry in each bucket and updates the counters. Returns the
  * number of removed entries.
  */
-static long gc(void)
+static long gc(server_rec *s)
 {
     client_entry *entry, *prev;
     unsigned long num_removed = 0, idx;
@@ -789,6 +818,12 @@ static long gc(void)
     for (idx = 0; idx < client_list->tbl_len; idx++) {
         entry = client_list->table[idx];
         prev  = NULL;
+
+        if (!entry) {
+            /* This bucket is empty. */
+            continue;
+        }
+
         while (entry->next) {   /* find last entry */
             prev  = entry;
             entry = entry->next;
@@ -800,8 +835,16 @@ static long gc(void)
             client_list->table[idx] = NULL;
         }
         if (entry) {                    /* remove entry */
-            apr_rmm_free(client_rmm, apr_rmm_offset_get(client_rmm, entry));
+            apr_status_t err;
+
+            err = rmm_free(client_rmm, entry);
             num_removed++;
+
+            if (err) {
+                /* Nothing we can really do but log... */
+                ap_log_error(APLOG_MARK, APLOG_ERR, err, s, APLOGNO(10007)
+                             "Failed to free auth_digest client allocation");
+            }
         }
     }
 
@@ -835,16 +878,16 @@ static client_entry *add_client(unsigned long key, client_entry *info,
 
     /* try to allocate a new entry */
 
-    entry = apr_rmm_addr_get(client_rmm, apr_rmm_malloc(client_rmm, sizeof(client_entry)));
+    entry = rmm_malloc(client_rmm, sizeof(client_entry));
     if (!entry) {
-        long num_removed = gc();
+        long num_removed = gc(s);
         ap_log_error(APLOG_MARK, APLOG_INFO, 0, s, APLOGNO(01766)
                      "gc'd %ld client entries. Total new clients: "
                      "%ld; Total removed clients: %ld; Total renewed clients: "
                      "%ld", num_removed,
                      client_list->num_created - client_list->num_renewed,
                      client_list->num_removed, client_list->num_renewed);
-        entry = apr_rmm_addr_get(client_rmm, apr_rmm_malloc(client_rmm, sizeof(client_entry)));
+        entry = rmm_malloc(client_rmm, sizeof(client_entry));
         if (!entry) {
             ap_log_error(APLOG_MARK, APLOG_ERR, 0, s, APLOGNO(01767)
                          "unable to allocate new auth_digest client");
@@ -922,13 +965,13 @@ static int get_digest_rec(request_rec *r, digest_header_rec *resp)
 
         /* find value */
 
+        vv = 0;
         if (auth_line[0] == '=') {
             auth_line++;
             while (apr_isspace(auth_line[0])) {
                 auth_line++;
             }
 
-            vv = 0;
             if (auth_line[0] == '\"') {         /* quoted string */
                 auth_line++;
                 while (auth_line[0] != '\"' && auth_line[0] != '\0') {
@@ -947,8 +990,8 @@ static int get_digest_rec(request_rec *r, digest_header_rec *resp)
                     value[vv++] = *auth_line++;
                 }
             }
-            value[vv] = '\0';
         }
+        value[vv] = '\0';
 
         while (auth_line[0] != ',' && auth_line[0] != '\0') {
             auth_line++;
@@ -1404,7 +1447,7 @@ static authn_status get_hash(request_rec *r, const char *user,
 
         apr_table_unset(r->notes, AUTHN_PROVIDER_NAME_NOTE);
 
-        /* Something occured.  Stop checking. */
+        /* Something occurred.  Stop checking. */
         if (auth_result != AUTH_USER_NOT_FOUND) {
             break;
         }
@@ -1746,7 +1789,7 @@ static int authenticate_digest_user(request_rec *r)
              * works out ok, since we can hash the header and get the same
              * result.  however, the uri from the request line won't match
              * the uri Authorization component since the header lacks the
-             * query string, leaving us incompatable with a (broken) MSIE.
+             * query string, leaving us incompatible with a (broken) MSIE.
              *
              * the workaround is to fake a query string match if in the proper
              * environment - BrowserMatch MSIE, for example.  the cool thing

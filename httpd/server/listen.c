@@ -153,7 +153,7 @@ static apr_status_t make_sock(apr_pool_t *p, ap_listen_rec *server)
 #endif
 
 #if defined(SO_REUSEPORT)
-    if (ap_have_so_reuseport) {
+    if (ap_have_so_reuseport && ap_listencbratio > 0) {
         int thesock;
         apr_os_sock_get(&thesock, s);
         if (setsockopt(thesock, SOL_SOCKET, SO_REUSEPORT,
@@ -763,7 +763,7 @@ AP_DECLARE(void) ap_listen_pre_config(void)
     /* Check once whether or not SO_REUSEPORT is supported. */
     if (ap_have_so_reuseport < 0) {
         /* This is limited to Linux with defined SO_REUSEPORT (ie. 3.9+) for
-         * now since the implementation evenly distributes connections accross
+         * now since the implementation evenly distributes connections across
          * all the listening threads/processes.
          *
          * *BSDs have SO_REUSEPORT too but with a different semantic: the first

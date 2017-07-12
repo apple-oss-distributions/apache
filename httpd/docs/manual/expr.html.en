@@ -37,7 +37,7 @@
     expression variants in HTTPD. For example, the deprecated <code class="directive"><a href="./mod/mod_ssl.html#sslrequire">SSLRequire</a></code> expressions can be replaced
     by <a href="mod/mod_authz_core.html#reqexpr">Require expr</a>.  </p>
   </div>
-<div id="quickview"><ul id="toc"><li><img alt="" src="./images/down.gif" /> <a href="#grammar">Grammar in Backus-Naur Form notation</a></li>
+<div id="quickview"><a href="https://www.apache.org/foundation/contributing.html" class="badge"><img src="https://www.apache.org/images/SupportApache-small.png" alt="Support Apache!" /></a><ul id="toc"><li><img alt="" src="./images/down.gif" /> <a href="#grammar">Grammar in Backus-Naur Form notation</a></li>
 <li><img alt="" src="./images/down.gif" /> <a href="#vars">Variables</a></li>
 <li><img alt="" src="./images/down.gif" /> <a href="#binop">Binary operators</a></li>
 <li><img alt="" src="./images/down.gif" /> <a href="#unnop">Unary operators</a></li>
@@ -196,57 +196,59 @@ listfunction ::= listfuncname "<strong>(</strong>" word "<strong>)</strong>"</pr
             "<code>GET /index.html HTTP/1.1</code>")</td></tr>
 <tr class="odd"><td><code>REMOTE_ADDR</code></td>
         <td>The IP address of the remote host</td></tr>
-<tr><td><code>REMOTE_HOST</code></td>
+<tr><td><code>REMOTE_PORT</code></td>
+        <td>The port of the remote host (2.4.26 and later)</td></tr>
+<tr class="odd"><td><code>REMOTE_HOST</code></td>
         <td>The host name of the remote host</td></tr>
-<tr class="odd"><td><code>REMOTE_USER</code></td>
+<tr><td><code>REMOTE_USER</code></td>
         <td>The name of the authenticated user, if any (not available during <code class="directive">&lt;If &gt;</code>)</td></tr>
-<tr><td><code>REMOTE_IDENT</code></td>
+<tr class="odd"><td><code>REMOTE_IDENT</code></td>
         <td>The user name set by <code class="module"><a href="./mod/mod_ident.html">mod_ident</a></code></td></tr>
-<tr class="odd"><td><code>SERVER_NAME</code></td>
+<tr><td><code>SERVER_NAME</code></td>
         <td>The <code class="directive"><a href="./mod/core.html#servername">ServerName</a></code> of
             the current vhost</td></tr>
-<tr><td><code>SERVER_PORT</code></td>
+<tr class="odd"><td><code>SERVER_PORT</code></td>
         <td>The server port of the current vhost, see
             <code class="directive"><a href="./mod/core.html#servername">ServerName</a></code></td></tr>
-<tr class="odd"><td><code>SERVER_ADMIN</code></td>
+<tr><td><code>SERVER_ADMIN</code></td>
         <td>The <code class="directive"><a href="./mod/core.html#serveradmin">ServerAdmin</a></code> of
             the current vhost</td></tr>
-<tr><td><code>SERVER_PROTOCOL</code></td>
+<tr class="odd"><td><code>SERVER_PROTOCOL</code></td>
         <td>The protocol used by the request</td></tr>
-<tr class="odd"><td><code>DOCUMENT_ROOT</code></td>
+<tr><td><code>DOCUMENT_ROOT</code></td>
         <td>The <code class="directive"><a href="./mod/core.html#documentroot">DocumentRoot</a></code> of
             the current vhost</td></tr>
-<tr><td><code>AUTH_TYPE</code></td>
+<tr class="odd"><td><code>AUTH_TYPE</code></td>
         <td>The configured <code class="directive"><a href="./mod/mod_authn_core.html#authtype">AuthType</a></code> (e.g.
         "<code>basic</code>")</td></tr>
-<tr class="odd"><td><code>CONTENT_TYPE</code></td>
+<tr><td><code>CONTENT_TYPE</code></td>
         <td>The content type of the response (not available during <code class="directive">&lt;If &gt;</code>)</td></tr>
-<tr><td><code>HANDLER</code></td>
+<tr class="odd"><td><code>HANDLER</code></td>
         <td>The name of the <a href="handler.html">handler</a> creating
             the response</td></tr>
-<tr class="odd"><td><code>HTTP2</code></td>
+<tr><td><code>HTTP2</code></td>
         <td>"<code>on</code>" if the request uses http/2,
             "<code>off</code>" otherwise</td></tr>
-<tr><td><code>HTTPS</code></td>
+<tr class="odd"><td><code>HTTPS</code></td>
         <td>"<code>on</code>" if the request uses https,
             "<code>off</code>" otherwise</td></tr>
-<tr class="odd"><td><code>IPV6</code></td>
+<tr><td><code>IPV6</code></td>
         <td>"<code>on</code>" if the connection uses IPv6,
             "<code>off</code>" otherwise</td></tr>
-<tr><td><code>REQUEST_STATUS</code></td>
+<tr class="odd"><td><code>REQUEST_STATUS</code></td>
         <td>The HTTP error status of the request (not available during <code class="directive">&lt;If &gt;</code>)</td></tr>
-<tr class="odd"><td><code>REQUEST_LOG_ID</code></td>
+<tr><td><code>REQUEST_LOG_ID</code></td>
         <td>The error log id of the request (see
             <code class="directive"><a href="./mod/core.html#errorlogformat">ErrorLogFormat</a></code>)</td></tr>
-<tr><td><code>CONN_LOG_ID</code></td>
+<tr class="odd"><td><code>CONN_LOG_ID</code></td>
         <td>The error log id of the connection (see
             <code class="directive"><a href="./mod/core.html#errorlogformat">ErrorLogFormat</a></code>)</td></tr>
-<tr class="odd"><td><code>CONN_REMOTE_ADDR</code></td>
+<tr><td><code>CONN_REMOTE_ADDR</code></td>
         <td>The peer IP address of the connection (see the
             <code class="module"><a href="./mod/mod_remoteip.html">mod_remoteip</a></code> module)</td></tr>
-<tr><td><code>CONTEXT_PREFIX</code></td>
+<tr class="odd"><td><code>CONTEXT_PREFIX</code></td>
         <td /></tr>
-<tr class="odd"><td><code>CONTEXT_DOCUMENT_ROOT</code></td>
+<tr><td><code>CONTEXT_DOCUMENT_ROOT</code></td>
         <td /></tr>
 </table>
 
@@ -256,12 +258,12 @@ listfunction ::= listfuncname "<strong>(</strong>" word "<strong>)</strong>"</pr
 <tr><td><code>TIME_YEAR</code></td>
         <td>The current year (e.g. <code>2010</code>)</td></tr>
 <tr class="odd"><td><code>TIME_MON</code></td>
-        <td>The current month (<code>1</code>, ..., <code>12</code>)</td></tr>
+        <td>The current month (<code>01</code>, ..., <code>12</code>)</td></tr>
 <tr><td><code>TIME_DAY</code></td>
-        <td>The current day of the month</td></tr>
+        <td>The current day of the month (<code>01</code>, ...)</td></tr>
 <tr class="odd"><td><code>TIME_HOUR</code></td>
         <td>The hour part of the current time
-            (<code>0</code>, ..., <code>23</code>)</td></tr>
+            (<code>00</code>, ..., <code>23</code>)</td></tr>
 <tr><td><code>TIME_MIN</code></td>
         <td>The minute part of the current time </td></tr>
 <tr class="odd"><td><code>TIME_SEC</code></td>
@@ -313,6 +315,12 @@ listfunction ::= listfuncname "<strong>(</strong>" word "<strong>)</strong>"</pr
 <tr class="odd"><td><code>&gt;=</code></td>
         <td />
         <td>String greater than or equal</td></tr>
+<tr><td><code>=~</code></td>
+        <td />
+        <td>String matches the regular expression</td></tr>
+<tr class="odd"><td><code>!~</code></td>
+        <td />
+        <td>String does not match the regular expression</td></tr>
 <tr><td><code>-eq</code></td>
         <td><code>eq</code></td>
         <td>Integer equality</td></tr>
@@ -418,7 +426,7 @@ listfunction ::= listfuncname "<strong>(</strong>" word "<strong>)</strong>"</pr
     a string. Functions names are not case sensitive.
     Modules may register additional functions.</p>
 
-    <table class="bordered"><tr class="header"><th>Name</th><th>Description</th><th>Restricted</th></tr>
+    <table class="bordered"><tr class="header"><th>Name</th><th>Description</th><th>Special notes</th></tr>
 <tr><td><code>req</code>, <code>http</code></td>
         <td>Get HTTP request header; header names may be added to the Vary
             header, see below</td><td /></tr>
@@ -429,15 +437,15 @@ listfunction ::= listfuncname "<strong>(</strong>" word "<strong>)</strong>"</pr
         <td>Get HTTP response header</td><td /></tr>
 <tr class="odd"><td><code>reqenv</code></td>
         <td>Lookup request environment variable (as a shortcut,
-        <code>v</code> can be used too to access
-        variables).</td><td /></tr>
+        <code>v</code> can also be used to access variables).</td>
+        <td>ordering</td></tr>
 <tr><td><code>osenv</code></td>
         <td>Lookup operating system environment variable</td><td /></tr>
 <tr class="odd"><td><code>note</code></td>
-        <td>Lookup request note</td><td /></tr>
+        <td>Lookup request note</td><td>ordering</td></tr>
 <tr><td><code>env</code></td>
         <td>Return first match of <code>note</code>, <code>reqenv</code>,
-            <code>osenv</code></td><td /></tr>
+            <code>osenv</code></td><td>ordering</td></tr>
 <tr class="odd"><td><code>tolower</code></td>
         <td>Convert string to lower case</td><td /></tr>
 <tr><td><code>toupper</code></td>
@@ -460,14 +468,37 @@ listfunction ::= listfuncname "<strong>(</strong>" word "<strong>)</strong>"</pr
             encoding</td><td /></tr>
 <tr class="odd"><td><code>file</code></td>
         <td>Read contents from a file (including line endings, when present)
-        </td><td>yes</td></tr>
-<tr><td><code>filesize</code></td>
+        </td><td>restricted</td></tr>
+<tr><td><code>filemod</code></td>
+        <td>Return last modification time of a file (or 0 if file does not exist
+            or is not regular file)</td><td>restricted</td></tr>
+<tr class="odd"><td><code>filesize</code></td>
         <td>Return size of a file (or 0 if file does not exist or is not
-            regular file)</td><td>yes</td></tr>
+            regular file)</td><td>restricted</td></tr>
 </table>
 
-    <p>The functions marked as "restricted" are not available in some modules
-    like <code class="module"><a href="./mod/mod_include.html">mod_include</a></code>.</p>
+    <p>The functions marked as "restricted" in the final column are not 
+    available in some modules like <code class="module"><a href="./mod/mod_include.html">mod_include</a></code>.</p>
+
+    <p>The functions marked as "ordering" in the final column require some
+    consideration for the ordering of different components of the server,
+    especially when the function is used within the 
+    &lt;<code class="directive"><a href="./mod/core.html#if">If</a></code>&gt; directive which is
+    evaluated relatively early.</p>
+    <div class="note">
+    <h3>Environment variable ordering</h3>
+    When environment variables are looked up within an 
+    &lt;<code class="directive"><a href="./mod/core.html#if">If</a></code>&gt; condition, it's important 
+    to consider how extremely early in request processing that this 
+    resolution occurs. As a guideline, any directive defined outside of virtual host 
+    context (directory, location, htaccess) is not likely to have yet had a 
+    chance to execute. <code class="directive"><a href="./mod/mod_setenvif.html#setenvif">SetEnvIf</a></code>
+    in virtual host scope is one directive that runs prior to this resolution
+    <br />
+    <br />
+    When <code>reqenv</code> is used outside of &lt;<code class="directive"><a href="./mod/core.html#if">If</a></code>&gt;, the resolution will generally occur later, but the 
+    exact timing depends on the directive the expression has been used within.
+    </div>
 
     <p>When the functions <code>req</code> or <code>http</code> are used,
     the header name will automatically be added to the Vary header of the
@@ -490,12 +521,13 @@ listfunction ::= listfuncname "<strong>(</strong>" word "<strong>)</strong>"</pr
 </div><div class="top"><a href="#page-header"><img alt="top" src="./images/up.gif" /></a></div>
 <div class="section">
 <h2><a name="examples" id="examples">Example expressions</a></h2>
+
     
-	
     <p>The following examples show how expressions might be used to
     evaluate requests:</p>
-	
-	<pre class="prettyprint lang-config"># Compare the host name to example.com and redirect to www.example.com if it matches
+
+    
+    <pre class="prettyprint lang-config"># Compare the host name to example.com and redirect to www.example.com if it matches
 &lt;If "%{HTTP_HOST} == 'example.com'"&gt;
     Redirect permanent "/" "http://www.example.com/"
 &lt;/If&gt;
@@ -508,7 +540,7 @@ listfunction ::= listfuncname "<strong>(</strong>" word "<strong>)</strong>"</pr
 # Only allow access to this content during business hours
 &lt;Directory "/foo/bar/business"&gt;
     Require expr %{TIME_HOUR} -gt 9 &amp;&amp; %{TIME_HOUR} -lt 17
-&lt;/Directory&gt;	
+&lt;/Directory&gt;
 
 # Check a HTTP header for a list of values
 &lt;If "%{HTTP:X-example-header} in { 'foo', 'bar', 'baz' }"&gt;
@@ -542,7 +574,7 @@ listfunction ::= listfuncname "<strong>(</strong>" word "<strong>)</strong>"</pr
 Header set foo-checksum "expr=%{md5:foo}"
 
 # This delays the evaluation of the condition clause compared to &lt;If&gt;
-Header always set CustomHeader my-value "expr=%{REQUEST_URI} =~ m#^/special_path.php$#"</pre>
+Header always set CustomHeader my-value "expr=%{REQUEST_URI} =~ m#^/special_path\.php$#"</pre>
 
 </div><div class="top"><a href="#page-header"><img alt="top" src="./images/up.gif" /></a></div>
 <div class="section">
@@ -609,7 +641,7 @@ var comments_identifier = 'http://httpd.apache.org/docs/2.4/expr.html';
     }
 })(window, document);
 //--><!]]></script></div><div id="footer">
-<p class="apache">Copyright 2016 The Apache Software Foundation.<br />Licensed under the <a href="http://www.apache.org/licenses/LICENSE-2.0">Apache License, Version 2.0</a>.</p>
+<p class="apache">Copyright 2017 The Apache Software Foundation.<br />Licensed under the <a href="http://www.apache.org/licenses/LICENSE-2.0">Apache License, Version 2.0</a>.</p>
 <p class="menu"><a href="./mod/">Modules</a> | <a href="./mod/directives.html">Directives</a> | <a href="http://wiki.apache.org/httpd/FAQ">FAQ</a> | <a href="./glossary.html">Glossary</a> | <a href="./sitemap.html">Sitemap</a></p></div><script type="text/javascript"><!--//--><![CDATA[//><!--
 if (typeof(prettyPrint) !== 'undefined') {
     prettyPrint();

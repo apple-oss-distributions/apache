@@ -300,7 +300,7 @@ apr_status_t cache_remove_lock(cache_server_conf *conf,
         cache_request_rec *cache, request_rec *r, apr_bucket_brigade *bb);
 
 cache_provider_list *cache_get_providers(request_rec *r,
-        cache_server_conf *conf, apr_uri_t uri);
+                                         cache_server_conf *conf);
 
 /**
  * Get a value from a table, where the table may contain multiple
@@ -326,6 +326,12 @@ char *cache_strqtok(char *str, const char *sep, char **last);
  * Content-Encoding if available.
  */
 apr_table_t *cache_merge_headers_out(request_rec *r);
+
+/**
+ * Return whether to use request's path/query from early stage (r->parsed_uri)
+ * or the current/rewritable ones (r->uri/r->args).
+ */
+int cache_use_early_url(request_rec *r);
 
 #ifdef __cplusplus
 }

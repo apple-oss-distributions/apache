@@ -33,17 +33,24 @@ typedef enum {
     H2_CONF_ALT_SVC_MAX_AGE,
     H2_CONF_SER_HEADERS,
     H2_CONF_DIRECT,
-    H2_CONF_SESSION_FILES,
     H2_CONF_MODERN_TLS_ONLY,
     H2_CONF_UPGRADE,
     H2_CONF_TLS_WARMUP_SIZE,
     H2_CONF_TLS_COOLDOWN_SECS,
     H2_CONF_PUSH,
     H2_CONF_PUSH_DIARY_SIZE,
+    H2_CONF_COPY_FILES,
+    H2_CONF_EARLY_HINTS,
 } h2_config_var_t;
 
 struct apr_hash_t;
 struct h2_priority;
+struct h2_push_res;
+
+typedef struct h2_push_res {
+    const char *uri_ref;
+    int critical;
+} h2_push_res;
 
 /* Apache httpd module configuration for h2. */
 typedef struct h2_config {
@@ -59,7 +66,6 @@ typedef struct h2_config {
     int serialize_headers;        /* Use serialized HTTP/1.1 headers for 
                                      processing, better compatibility */
     int h2_direct;                /* if mod_h2 is active directly */
-    int session_extra_files;      /* # of extra files a session may keep open */  
     int modern_tls_only;          /* Accept only modern TLS in HTTP/2 connections */  
     int h2_upgrade;               /* Allow HTTP/1 upgrade to h2/h2c */
     apr_int64_t tls_warmup_size;  /* Amount of TLS data to send before going full write size */
@@ -68,14 +74,16 @@ typedef struct h2_config {
     struct apr_hash_t *priorities;/* map of content-type to h2_priority records */
     
     int push_diary_size;          /* # of entries in push diary */
+    int copy_files;               /* if files shall be copied vs setaside on output */
+    apr_array_header_t *push_list;/* list of h2_push_res configurations */
+    int early_hints;              /* support status code 103 */
 } h2_config;
 
 
 void *h2_config_create_dir(apr_pool_t *pool, char *x);
+void *h2_config_merge_dir(apr_pool_t *pool, void *basev, void *addv);
 void *h2_config_create_svr(apr_pool_t *pool, server_rec *s);
-void *h2_config_merge(apr_pool_t *pool, void *basev, void *addv);
-
-apr_status_t h2_config_apply_header(const h2_config *config, request_rec *r);
+void *h2_config_merge_svr(apr_pool_t *pool, void *basev, void *addv);
 
 extern const command_rec h2_cmds[];
 

@@ -47,10 +47,10 @@ static void h2_hooks(apr_pool_t *pool);
 
 AP_DECLARE_MODULE(http2) = {
     STANDARD20_MODULE_STUFF,
-    NULL,
-    NULL,
+    h2_config_create_dir, /* func to create per dir config */
+    h2_config_merge_dir,  /* func to merge per dir config */
     h2_config_create_svr, /* func to create per server config */
-    h2_config_merge,      /* func to merge per server config */
+    h2_config_merge_svr,  /* func to merge per server config */
     h2_cmds,              /* command handlers */
     h2_hooks
 };
@@ -60,9 +60,12 @@ static int h2_h2_fixups(request_rec *r);
 typedef struct {
     unsigned int change_prio : 1;
     unsigned int sha256 : 1;
+    unsigned int inv_headers : 1;
+    unsigned int dyn_windows : 1;
 } features;
 
 static features myfeats;
+static int mpm_warned;
 
 /* The module initialization. Called once as apache hook, before any multi
  * processing (threaded or not) happens. It is typically at least called twice, 
@@ -84,15 +87,19 @@ static int h2_post_config(apr_pool_t *p, apr_pool_t *plog,
     const char *mod_h2_init_key = "mod_http2_init_counter";
     nghttp2_info *ngh2;
     apr_status_t status;
-    const char *sep = "";
     
     (void)plog;(void)ptemp;
 #ifdef H2_NG2_CHANGE_PRIO
     myfeats.change_prio = 1;
-    sep = "+";
 #endif
 #ifdef H2_OPENSSL
     myfeats.sha256 = 1;
+#endif
+#ifdef H2_NG2_INVALID_HEADER_CB
+    myfeats.inv_headers = 1;
+#endif
+#ifdef H2_NG2_LOCAL_WIN_SIZE
+    myfeats.dyn_windows = 1;
 #endif
     
     apr_pool_userdata_get(&data, mod_h2_init_key, s->process->pool);
@@ -106,10 +113,12 @@ static int h2_post_config(apr_pool_t *p, apr_pool_t *plog,
     
     ngh2 = nghttp2_version(0);
     ap_log_error( APLOG_MARK, APLOG_INFO, 0, s, APLOGNO(03090)
-                 "mod_http2 (v%s, feats=%s%s%s, nghttp2 %s), initializing...",
+                 "mod_http2 (v%s, feats=%s%s%s%s, nghttp2 %s), initializing...",
                  MOD_HTTP2_VERSION, 
-                 myfeats.change_prio? "CHPRIO" : "", sep, 
-                 myfeats.sha256?      "SHA256" : "",
+                 myfeats.change_prio? "CHPRIO"  : "", 
+                 myfeats.sha256?      "+SHA256" : "",
+                 myfeats.inv_headers? "+INVHD"  : "",
+                 myfeats.dyn_windows? "+DWINS"  : "",
                  ngh2?                ngh2->version_str : "unknown");
     
     switch (h2_conn_mpm_type()) {
@@ -131,6 +140,17 @@ static int h2_post_config(apr_pool_t *p, apr_pool_t *plog,
             ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s, APLOGNO(03091)
                          "post_config: mpm type unknown");
             break;
+    }
+    
+    if (!h2_mpm_supported() && !mpm_warned) {
+        mpm_warned = 1;
+        ap_log_error(APLOG_MARK, APLOG_WARNING, 0, s, APLOGNO(10034)
+                     "The mpm module (%s) is not supported by mod_http2. The mpm determines "
+                     "how things are processed in your server. HTTP/2 has more demands in "
+                     "this regard and the currently selected mpm will just not do. "
+                     "This is an advisory warning. Your server will continue to work, but "
+                     "the HTTP/2 protocol will be inactive.", 
+                     h2_conn_mpm_name());
     }
     
     status = h2_h2_init(p, s);
@@ -157,15 +177,16 @@ static apr_status_t http2_req_engine_push(const char *ngn_type,
 
 static apr_status_t http2_req_engine_pull(h2_req_engine *ngn, 
                                           apr_read_type_e block, 
-                                          apr_uint32_t capacity, 
+                                          int capacity, 
                                           request_rec **pr)
 {
     return h2_mplx_req_engine_pull(ngn, block, capacity, pr);
 }
 
-static void http2_req_engine_done(h2_req_engine *ngn, conn_rec *r_conn)
+static void http2_req_engine_done(h2_req_engine *ngn, conn_rec *r_conn,
+                                  apr_status_t status)
 {
-    h2_mplx_req_engine_done(ngn, r_conn);
+    h2_mplx_req_engine_done(ngn, r_conn, status);
 }
 
 /* Runs once per created child process. Perform any process 
@@ -230,8 +251,11 @@ static const char *val_H2_PUSH(apr_pool_t *p, server_rec *s,
     if (ctx) {
         if (r) {
             h2_task *task = h2_ctx_get_task(ctx);
-            if (task && task->request->push_policy != H2_PUSH_NONE) {
-                return "on";
+            if (task) {
+                h2_stream *stream = h2_mplx_stream_get(task->mplx, task->stream_id);
+                if (stream && stream->push_policy != H2_PUSH_NONE) {
+                    return "on";
+                }
             }
         }
         else if (c && h2_session_push_enabled(ctx->session)) {
@@ -265,7 +289,10 @@ static const char *val_H2_PUSHED_ON(apr_pool_t *p, server_rec *s,
     if (ctx) {
         h2_task *task = h2_ctx_get_task(ctx);
         if (task && !H2_STREAM_CLIENT_INITIATED(task->stream_id)) {
-            return apr_itoa(p, task->request->initiated_on);
+            h2_stream *stream = h2_mplx_stream_get(task->mplx, task->stream_id);
+            if (stream) {
+                return apr_itoa(p, stream->initiated_on);
+            }
         }
     }
     return "";
@@ -334,7 +361,7 @@ static char *http2_var_lookup(apr_pool_t *p, server_rec *s,
             return (char *)vdef->lookup(p, s, c, r, ctx);
         }
     }
-    return "";
+    return (char*)"";
 }
 
 static int h2_h2_fixups(request_rec *r)

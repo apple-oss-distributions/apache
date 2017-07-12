@@ -79,7 +79,7 @@
  * char in here and get it to work, because if char is signed then it
  * will first be sign extended.
  */
-#define TEST_CHAR(c, f)        (test_char_table[(unsigned)(c)] & (f))
+#define TEST_CHAR(c, f)        (test_char_table[(unsigned char)(c)] & (f))
 
 /* Win32/NetWare/OS2 need to check for both forward and back slashes
  * in ap_getparents() and ap_escape_url.
@@ -1525,7 +1525,7 @@ AP_DECLARE(const char *) ap_parse_token_list_strict(apr_pool_t *p,
     while (!string_end) {
         const unsigned char c = (unsigned char)*cur;
 
-        if (!TEST_CHAR(c, T_HTTP_TOKEN_STOP) && c != '\0') {
+        if (!TEST_CHAR(c, T_HTTP_TOKEN_STOP)) {
             /* Non-separator character; we are finished with leading
              * whitespace. We must never have encountered any trailing
              * whitespace before the delimiter (comma) */
@@ -1593,6 +1593,37 @@ AP_DECLARE(const char *) ap_parse_token_list_strict(apr_pool_t *p,
     return NULL;
 }
 
+/* Scan a string for HTTP VCHAR/obs-text characters including HT and SP
+ * (as used in header values, for example, in RFC 7230 section 3.2)
+ * returning the pointer to the first non-HT ASCII ctrl character.
+ */
+AP_DECLARE(const char *) ap_scan_http_field_content(const char *ptr)
+{
+    for ( ; !TEST_CHAR(*ptr, T_HTTP_CTRLS); ++ptr) ;
+
+    return ptr;
+}
+
+/* Scan a string for HTTP token characters, returning the pointer to
+ * the first non-token character.
+ */
+AP_DECLARE(const char *) ap_scan_http_token(const char *ptr)
+{
+    for ( ; !TEST_CHAR(*ptr, T_HTTP_TOKEN_STOP); ++ptr) ;
+
+    return ptr;
+}
+
+/* Scan a string for visible ASCII (0x21-0x7E) or obstext (0x80+)
+ * and return a pointer to the first ctrl/space character encountered.
+ */
+AP_DECLARE(const char *) ap_scan_vchar_obstext(const char *ptr)
+{
+    for ( ; TEST_CHAR(*ptr, T_VCHAR_OBSTEXT); ++ptr) ;
+
+    return ptr;
+}
+
 /* Retrieve a token, spacing over it and returning a pointer to
  * the first non-white byte afterwards.  Note that these tokens
  * are delimited by semis and commas; and can also be delimited
@@ -1648,10 +1679,8 @@ AP_DECLARE(int) ap_find_token(apr_pool_t *p, const char *line, const char *tok)
 
     s = (const unsigned char *)line;
     for (;;) {
-        /* find start of token, skip all stop characters, note NUL
-         * isn't a token stop, so we don't need to test for it
-         */
-        while (TEST_CHAR(*s, T_HTTP_TOKEN_STOP)) {
+        /* find start of token, skip all stop characters */
+        while (*s && TEST_CHAR(*s, T_HTTP_TOKEN_STOP)) {
             ++s;
         }
         if (!*s) {
@@ -2635,8 +2664,7 @@ AP_DECLARE(int) ap_parse_form_data(request_rec *r, ap_filter_t *f,
     ap_form_pair_t *pair = NULL;
     apr_array_header_t *pairs = apr_array_make(r->pool, 4, sizeof(ap_form_pair_t));
 
-    char hi = 0;
-    char low = 0;
+    char escaped_char[2];
 
     *ptr = pairs;
 
@@ -2703,30 +2731,13 @@ AP_DECLARE(int) ap_parse_form_data(request_rec *r, ap_filter_t *f,
                     continue;
                 }
                 if (FORM_PERCENTA == percent) {
-                    if (c >= 'a') {
-                        hi = c - 'a' + 10;
-                    }
-                    else if (c >= 'A') {
-                        hi = c - 'A' + 10;
-                    }
-                    else if (c >= '0') {
-                        hi = c - '0';
-                    }
-                    hi = hi << 4;
+                    escaped_char[0] = c;
                     percent = FORM_PERCENTB;
                     continue;
                 }
                 if (FORM_PERCENTB == percent) {
-                    if (c >= 'a') {
-                        low = c - 'a' + 10;
-                    }
-                    else if (c >= 'A') {
-                        low = c - 'A' + 10;
-                    }
-                    else if (c >= '0') {
-                        low = c - '0';
-                    }
-                    c = low | hi;
+                    escaped_char[1] = c;
+                    c = x2c(escaped_char);
                     percent = FORM_NORMAL;
                 }
                 switch (state) {

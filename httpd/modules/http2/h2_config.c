@@ -48,12 +48,11 @@ static h2_config defconf = {
     -1,                     /* min workers */
     -1,                     /* max workers */
     10 * 60,                /* max workers idle secs */
-    64 * 1024,              /* stream max mem size */
+    32 * 1024,              /* stream max mem size */
     NULL,                   /* no alt-svcs */
     -1,                     /* alt-svc max age */
     0,                      /* serialize headers */
     -1,                     /* h2 direct mode */
-    -1,                     /* # session extra files */
     1,                      /* modern TLS only */
     -1,                     /* HTTP/1 Upgrade support */
     1024*1024,              /* TLS warmup size */
@@ -61,7 +60,9 @@ static h2_config defconf = {
     1,                      /* HTTP/2 server push enabled */
     NULL,                   /* map of content-type to priorities */
     256,                    /* push diary size */
-    
+    0,                      /* copy files across threads */
+    NULL,                   /* push list */
+    0,                      /* early hints, http status 103 */
 };
 
 void h2_config_init(apr_pool_t *pool)
@@ -73,7 +74,6 @@ static void *h2_config_create(apr_pool_t *pool,
                               const char *prefix, const char *x)
 {
     h2_config *conf = (h2_config *)apr_pcalloc(pool, sizeof(h2_config));
-    
     const char *s = x? x : "unknown";
     char *name = apr_pstrcat(pool, prefix, "[", s, "]", NULL);
     
@@ -87,7 +87,6 @@ static void *h2_config_create(apr_pool_t *pool,
     conf->alt_svc_max_age      = DEF_VAL;
     conf->serialize_headers    = DEF_VAL;
     conf->h2_direct            = DEF_VAL;
-    conf->session_extra_files  = DEF_VAL;
     conf->modern_tls_only      = DEF_VAL;
     conf->h2_upgrade           = DEF_VAL;
     conf->tls_warmup_size      = DEF_VAL;
@@ -95,7 +94,9 @@ static void *h2_config_create(apr_pool_t *pool,
     conf->h2_push              = DEF_VAL;
     conf->priorities           = NULL;
     conf->push_diary_size      = DEF_VAL;
-    
+    conf->copy_files           = DEF_VAL;
+    conf->push_list            = NULL;
+    conf->early_hints          = DEF_VAL;
     return conf;
 }
 
@@ -109,12 +110,11 @@ void *h2_config_create_dir(apr_pool_t *pool, char *x)
     return h2_config_create(pool, "dir", x);
 }
 
-void *h2_config_merge(apr_pool_t *pool, void *basev, void *addv)
+static void *h2_config_merge(apr_pool_t *pool, void *basev, void *addv)
 {
     h2_config *base = (h2_config *)basev;
     h2_config *add = (h2_config *)addv;
     h2_config *n = (h2_config *)apr_pcalloc(pool, sizeof(h2_config));
-
     char *name = apr_pstrcat(pool, "merged[", add->name, ", ", base->name, "]", NULL);
     n->name = name;
 
@@ -128,7 +128,6 @@ void *h2_config_merge(apr_pool_t *pool, void *basev, void *addv)
     n->alt_svc_max_age      = H2_CONFIG_GET(add, base, alt_svc_max_age);
     n->serialize_headers    = H2_CONFIG_GET(add, base, serialize_headers);
     n->h2_direct            = H2_CONFIG_GET(add, base, h2_direct);
-    n->session_extra_files  = H2_CONFIG_GET(add, base, session_extra_files);
     n->modern_tls_only      = H2_CONFIG_GET(add, base, modern_tls_only);
     n->h2_upgrade           = H2_CONFIG_GET(add, base, h2_upgrade);
     n->tls_warmup_size      = H2_CONFIG_GET(add, base, tls_warmup_size);
@@ -141,8 +140,25 @@ void *h2_config_merge(apr_pool_t *pool, void *basev, void *addv)
         n->priorities       = add->priorities? add->priorities : base->priorities;
     }
     n->push_diary_size      = H2_CONFIG_GET(add, base, push_diary_size);
-    
+    n->copy_files           = H2_CONFIG_GET(add, base, copy_files);
+    if (add->push_list && base->push_list) {
+        n->push_list        = apr_array_append(pool, base->push_list, add->push_list);
+    }
+    else {
+        n->push_list        = add->push_list? add->push_list : base->push_list;
+    }
+    n->early_hints          = H2_CONFIG_GET(add, base, early_hints);
     return n;
+}
+
+void *h2_config_merge_dir(apr_pool_t *pool, void *basev, void *addv)
+{
+    return h2_config_merge(pool, basev, addv);
+}
+
+void *h2_config_merge_svr(apr_pool_t *pool, void *basev, void *addv)
+{
+    return h2_config_merge(pool, basev, addv);
 }
 
 int h2_config_geti(const h2_config *conf, h2_config_var_t var)
@@ -175,8 +191,6 @@ apr_int64_t h2_config_geti64(const h2_config *conf, h2_config_var_t var)
             return H2_CONFIG_GET(conf, &defconf, h2_upgrade);
         case H2_CONF_DIRECT:
             return H2_CONFIG_GET(conf, &defconf, h2_direct);
-        case H2_CONF_SESSION_FILES:
-            return H2_CONFIG_GET(conf, &defconf, session_extra_files);
         case H2_CONF_TLS_WARMUP_SIZE:
             return H2_CONFIG_GET(conf, &defconf, tls_warmup_size);
         case H2_CONF_TLS_COOLDOWN_SECS:
@@ -185,6 +199,10 @@ apr_int64_t h2_config_geti64(const h2_config *conf, h2_config_var_t var)
             return H2_CONFIG_GET(conf, &defconf, h2_push);
         case H2_CONF_PUSH_DIARY_SIZE:
             return H2_CONFIG_GET(conf, &defconf, push_diary_size);
+        case H2_CONF_COPY_FILES:
+            return H2_CONFIG_GET(conf, &defconf, copy_files);
+        case H2_CONF_EARLY_HINTS:
+            return H2_CONFIG_GET(conf, &defconf, early_hints);
         default:
             return DEF_VAL;
     }
@@ -194,7 +212,7 @@ const h2_config *h2_config_sget(server_rec *s)
 {
     h2_config *cfg = (h2_config *)ap_get_module_config(s->module_config, 
                                                        &http2_module);
-    AP_DEBUG_ASSERT(cfg);
+    ap_assert(cfg);
     return cfg;
 }
 
@@ -286,7 +304,7 @@ static const char *h2_conf_set_stream_max_mem_size(cmd_parms *parms,
 static const char *h2_add_alt_svc(cmd_parms *parms,
                                   void *arg, const char *value)
 {
-    if (value && strlen(value)) {
+    if (value && *value) {
         h2_config *cfg = (h2_config *)h2_config_sget(parms->server);
         h2_alt_svc *as = h2_alt_svc_parse(value, parms->pool);
         if (!as) {
@@ -313,13 +331,11 @@ static const char *h2_conf_set_alt_svc_max_age(cmd_parms *parms,
 static const char *h2_conf_set_session_extra_files(cmd_parms *parms,
                                                    void *arg, const char *value)
 {
-    h2_config *cfg = (h2_config *)h2_config_sget(parms->server);
-    apr_int64_t max = (int)apr_atoi64(value);
-    if (max < 0) {
-        return "value must be a non-negative number";
-    }
-    cfg->session_extra_files = (int)max;
+    /* deprecated, ignore */
     (void)arg;
+    (void)value;
+    ap_log_perror(APLOG_MARK, APLOG_WARNING, 0, parms->pool, /* NO LOGNO */
+                  "H2SessionExtraFiles is obsolete and will be ignored");
     return NULL;
 }
 
@@ -384,7 +400,7 @@ static const char *h2_conf_add_push_priority(cmd_parms *cmd, void *_cfg,
     h2_priority *priority;
     int weight;
     
-    if (!strlen(ctype)) {
+    if (!*ctype) {
         return "1st argument must be a mime-type, like 'text/css' or '*'";
     }
     
@@ -500,6 +516,93 @@ static const char *h2_conf_set_push_diary_size(cmd_parms *parms,
     return NULL;
 }
 
+static const char *h2_conf_set_copy_files(cmd_parms *parms,
+                                          void *arg, const char *value)
+{
+    h2_config *cfg = (h2_config *)arg;
+    if (!strcasecmp(value, "On")) {
+        cfg->copy_files = 1;
+        return NULL;
+    }
+    else if (!strcasecmp(value, "Off")) {
+        cfg->copy_files = 0;
+        return NULL;
+    }
+    
+    (void)arg;
+    return "value must be On or Off";
+}
+
+static void add_push(apr_pool_t *pool, h2_config *conf, h2_push_res *push)
+{
+    h2_push_res *new;
+    if (!conf->push_list) {
+        conf->push_list = apr_array_make(pool, 10, sizeof(*push));
+    }
+    new = apr_array_push(conf->push_list);
+    new->uri_ref = push->uri_ref;
+    new->critical = push->critical;
+}
+
+static const char *h2_conf_add_push_res(cmd_parms *cmd, void *dirconf,
+                                        const char *arg1, const char *arg2,
+                                        const char *arg3)
+{
+    h2_config *dconf = (h2_config*)dirconf ;
+    h2_config *sconf = (h2_config*)h2_config_sget(cmd->server);
+    h2_push_res push;
+    const char *last = arg3;
+    
+    memset(&push, 0, sizeof(push));
+    if (!strcasecmp("add", arg1)) {
+        push.uri_ref = arg2;
+    }
+    else {
+        push.uri_ref = arg1;
+        last = arg2;
+        if (arg3) {
+            return "too many parameter";
+        }
+    }
+    
+    if (last) {
+        if (!strcasecmp("critical", last)) {
+            push.critical = 1;
+        }
+        else {
+            return "unknown last parameter";
+        }
+    }
+
+    /* server command? set both */
+    if (cmd->path == NULL) {
+        add_push(cmd->pool, sconf, &push);
+        add_push(cmd->pool, dconf, &push);
+    }
+    else {
+        add_push(cmd->pool, dconf, &push);
+    }
+
+    return NULL;
+}
+
+static const char *h2_conf_set_early_hints(cmd_parms *parms,
+                                           void *arg, const char *value)
+{
+    h2_config *cfg = (h2_config *)h2_config_sget(parms->server);
+    if (!strcasecmp(value, "On")) {
+        cfg->early_hints = 1;
+        return NULL;
+    }
+    else if (!strcasecmp(value, "Off")) {
+        cfg->early_hints = 0;
+        return NULL;
+    }
+    
+    (void)arg;
+    return "value must be On or Off";
+}
+
 #define AP_END_CMD     AP_INIT_TAKE1(NULL, NULL, NULL, RSRC_CONF, NULL)
 
 const command_rec h2_cmds[] = {
@@ -528,7 +631,7 @@ const command_rec h2_cmds[] = {
     AP_INIT_TAKE1("H2Direct", h2_conf_set_direct, NULL,
                   RSRC_CONF, "on to enable direct HTTP/2 mode"),
     AP_INIT_TAKE1("H2SessionExtraFiles", h2_conf_set_session_extra_files, NULL,
-                  RSRC_CONF, "number of extra file a session might keep open"),
+                  RSRC_CONF, "number of extra file a session might keep open (obsolete)"),
     AP_INIT_TAKE1("H2TLSWarmUpSize", h2_conf_set_tls_warmup_size, NULL,
                   RSRC_CONF, "number of bytes on TLS connection before doing max writes"),
     AP_INIT_TAKE1("H2TLSCoolDownSecs", h2_conf_set_tls_cooldown_secs, NULL,
@@ -539,6 +642,12 @@ const command_rec h2_cmds[] = {
                   RSRC_CONF, "define priority of PUSHed resources per content type"),
     AP_INIT_TAKE1("H2PushDiarySize", h2_conf_set_push_diary_size, NULL,
                   RSRC_CONF, "size of push diary"),
+    AP_INIT_TAKE1("H2CopyFiles", h2_conf_set_copy_files, NULL,
+                  OR_FILEINFO, "on to perform copy of file data"),
+    AP_INIT_TAKE123("H2PushResource", h2_conf_add_push_res, NULL,
+                   OR_FILEINFO, "add a resource to be pushed in this location/on this server."),
+    AP_INIT_TAKE1("H2EarlyHints", h2_conf_set_early_hints, NULL,
+                  RSRC_CONF, "on to enable interim status 103 responses"),
     AP_END_CMD
 };
 

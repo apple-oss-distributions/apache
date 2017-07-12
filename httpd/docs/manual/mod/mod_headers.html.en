@@ -42,7 +42,7 @@ headers</td></tr>
     request and response headers. Headers can be merged, replaced
     or removed.</p>
 </div>
-<div id="quickview"><h3>Topics</h3>
+<div id="quickview"><a href="https://www.apache.org/foundation/contributing.html" class="badge"><img src="https://www.apache.org/images/SupportApache-small.png" alt="Support Apache!" /></a><h3>Topics</h3>
 <ul id="topics">
 <li><img alt="" src="../images/down.gif" /> <a href="#order">Order of Processing</a></li>
 <li><img alt="" src="../images/down.gif" /> <a href="#early">Early and Late Processing</a></li>
@@ -309,8 +309,16 @@ available in 2.4.10 and later</td></tr>
 
     <dt><code>setifempty</code></dt>
     <dd>The request header is set, but only if there is no previous header
-    with this name.<br />
-    Available in 2.4.7 and later.</dd>
+    with this name.
+    <div class="note">
+    The Content-Type header is a special use case since there might be
+    the chance that its value have been determined but the header is not part
+    of the response when <code>setifempty</code> is evaluated.
+    It is safer to use <code>set</code> for this use case like in the
+    following example:
+    <pre class="prettyprint lang-config">Header set Content-Type "text/plain" "expr=-z %{CONTENT_TYPE}"</pre>
+
+    </div></dd>
 
     <dt><code>unset</code></dt>
     <dd>The response header of this name is removed, if it exists.
@@ -576,7 +584,7 @@ var comments_identifier = 'http://httpd.apache.org/docs/2.4/mod/mod_headers.html
     }
 })(window, document);
 //--><!]]></script></div><div id="footer">
-<p class="apache">Copyright 2016 The Apache Software Foundation.<br />Licensed under the <a href="http://www.apache.org/licenses/LICENSE-2.0">Apache License, Version 2.0</a>.</p>
+<p class="apache">Copyright 2017 The Apache Software Foundation.<br />Licensed under the <a href="http://www.apache.org/licenses/LICENSE-2.0">Apache License, Version 2.0</a>.</p>
 <p class="menu"><a href="../mod/">Modules</a> | <a href="../mod/directives.html">Directives</a> | <a href="http://wiki.apache.org/httpd/FAQ">FAQ</a> | <a href="../glossary.html">Glossary</a> | <a href="../sitemap.html">Sitemap</a></p></div><script type="text/javascript"><!--//--><![CDATA[//><!--
 if (typeof(prettyPrint) !== 'undefined') {
     prettyPrint();

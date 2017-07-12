@@ -21,7 +21,6 @@ http2_objs="dnl
 mod_http2.lo dnl
 h2_alt_svc.lo dnl
 h2_bucket_beam.lo dnl
-h2_bucket_eoc.lo dnl
 h2_bucket_eos.lo dnl
 h2_config.lo dnl
 h2_conn.lo dnl
@@ -30,17 +29,16 @@ h2_ctx.lo dnl
 h2_filter.lo dnl
 h2_from_h1.lo dnl
 h2_h2.lo dnl
+h2_headers.lo dnl
 h2_mplx.lo dnl
 h2_ngn_shed.lo dnl
 h2_push.lo dnl
 h2_request.lo dnl
-h2_response.lo dnl
 h2_session.lo dnl
 h2_stream.lo dnl
 h2_switch.lo dnl
 h2_task.lo dnl
 h2_util.lo dnl
-h2_worker.lo dnl
 h2_workers.lo dnl
 "
 
@@ -154,6 +152,12 @@ dnl # nghttp2 >= 1.3.0: access to stream weights
 dnl # nghttp2 >= 1.5.0: changing stream priorities
       AC_CHECK_FUNCS([nghttp2_session_change_stream_priority], 
         [APR_ADDTO(MOD_CPPFLAGS, ["-DH2_NG2_CHANGE_PRIO"])], [])
+dnl # nghttp2 >= 1.14.0: invalid header callback
+      AC_CHECK_FUNCS([nghttp2_session_callbacks_set_on_invalid_header_callback], 
+        [APR_ADDTO(MOD_CPPFLAGS, ["-DH2_NG2_INVALID_HEADER_CB"])], [])
+dnl # nghttp2 >= 1.15.0: get/set stream window sizes
+      AC_CHECK_FUNCS([nghttp2_session_get_stream_local_window_size], 
+        [APR_ADDTO(MOD_CPPFLAGS, ["-DH2_NG2_LOCAL_WIN_SIZE"])], [])
     else
       AC_MSG_WARN([nghttp2 version is too old])
     fi

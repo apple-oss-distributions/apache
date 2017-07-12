@@ -116,6 +116,7 @@ BEGIN {
           print "#LoadModule authz_owner_module modules/mod_authz_owner.so" > dstfl;
           print "LoadModule authz_user_module modules/mod_authz_user.so" > dstfl;
           print "LoadModule autoindex_module modules/mod_autoindex.so" > dstfl;
+          print "#LoadModule brotli_module modules/mod_brotli.so" > dstfl;
           print "#LoadModule buffer_module modules/mod_buffer.so" > dstfl;
           print "#LoadModule cache_module modules/mod_cache.so" > dstfl;
           print "#LoadModule cache_disk_module modules/mod_cache_disk.so" > dstfl;
@@ -166,6 +167,7 @@ BEGIN {
           print "#LoadModule proxy_express_module modules/mod_proxy_express.so" > dstfl;
           print "#LoadModule proxy_fcgi_module modules/mod_proxy_fcgi.so" > dstfl;
           print "#LoadModule proxy_ftp_module modules/mod_proxy_ftp.so" > dstfl;
+          print "#LoadModule proxy_hcheck_module modules/mod_proxy_hcheck.so" > dstfl;
           print "#LoadModule proxy_html_module modules/mod_proxy_html.so" > dstfl;
           print "#LoadModule proxy_http_module modules/mod_proxy_http.so" > dstfl;
           print "#LoadModule proxy_http2_module modules/mod_proxy_http2.so" > dstfl;

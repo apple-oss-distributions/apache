@@ -194,6 +194,9 @@ typedef STACK_OF(X509) X509_STACK_TYPE;
 #ifdef SSL_OP_NO_TLSv1_2
 #define HAVE_TLSV1_X
 #endif
+#if !defined(OPENSSL_NO_TLSEXT) && defined(SSL_set_tlsext_host_name)
+#define HAVE_TLSEXT
+#endif
 #endif
 
 #include <math.h>
@@ -310,7 +313,7 @@ int isproxy = 0;
 apr_interval_time_t aprtimeout = apr_time_from_sec(30); /* timeout value */
 
 /* overrides for ab-generated common headers */
-int opt_host = 0;       /* was an optional "Host:" header specified? */
+const char *opt_host;   /* which optional "Host:" header specified, if any */
 int opt_useragent = 0;  /* was an optional "User-Agent:" header specified? */
 int opt_accept = 0;     /* was an optional "Accept:" header specified? */
  /*
@@ -343,6 +346,10 @@ SSL_CTX *ssl_ctx;
 char *ssl_cipher = NULL;
 char *ssl_info = NULL;
 BIO *bio_out,*bio_err;
+#ifdef HAVE_TLSEXT
+int tls_use_sni = 1;         /* used by default, -I disables it */
+const char *tls_sni = NULL; /* 'opt_host' if any, 'hostname' otherwise */
+#endif
 #endif
 
 apr_time_t start, lasttime, stoptime;
@@ -864,6 +871,11 @@ static void output_results(int sig)
     if (is_ssl && ssl_info) {
         printf("SSL/TLS Protocol:       %s\n", ssl_info);
     }
+#ifdef HAVE_TLSEXT
+    if (is_ssl && tls_sni) {
+        printf("TLS Server Name:        %s\n", tls_sni);
+    }
+#endif
 #endif
     printf("\n");
     printf("Document Path:          %s\n", path);
@@ -1332,6 +1344,11 @@ static void start_connect(struct connection * c)
             BIO_set_callback(bio, ssl_print_cb);
             BIO_set_callback_arg(bio, (void *)bio_err);
         }
+#ifdef HAVE_TLSEXT
+        if (tls_sni) {
+            SSL_set_tlsext_host_name(c->ssl, tls_sni);
+        }
+#endif
     } else {
         c->ssl = NULL;
     }
@@ -1710,6 +1727,18 @@ static void test(void)
         /* Header overridden, no need to add, as it is already in hdrs */
     }
 
+#ifdef HAVE_TLSEXT
+    if (is_ssl && tls_use_sni) {
+        apr_ipsubnet_t *ip;
+        if (((tls_sni = opt_host) || (tls_sni = hostname)) &&
+            (!*tls_sni || apr_ipsubnet_create(&ip, tls_sni, NULL,
+                                               cntxt) == APR_SUCCESS)) {
+            /* IP not allowed in TLS SNI extension */
+            tls_sni = NULL;
+        }
+    }
+#endif
+
     if (!opt_useragent) {
         /* User-Agent: header not overridden, add default value to hdrs */
         hdrs = apr_pstrcat(cntxt, hdrs, "User-Agent: ApacheBench/", AP_AB_BASEREVISION, "\r\n", NULL);
@@ -1926,14 +1955,14 @@ static void test(void)
 static void copyright(void)
 {
     if (!use_html) {
-        printf("This is ApacheBench, Version %s\n", AP_AB_BASEREVISION " <$Revision: 1748469 $>");
+        printf("This is ApacheBench, Version %s\n", AP_AB_BASEREVISION " <$Revision: 1796539 $>");
         printf("Copyright 1996 Adam Twiss, Zeus Technology Ltd, http://www.zeustech.net/\n");
         printf("Licensed to The Apache Software Foundation, http://www.apache.org/\n");
         printf("\n");
     }
     else {
         printf("<p>\n");
-        printf(" This is ApacheBench, Version %s <i>&lt;%s&gt;</i><br>\n", AP_AB_BASEREVISION, "$Revision: 1748469 $");
+        printf(" This is ApacheBench, Version %s <i>&lt;%s&gt;</i><br>\n", AP_AB_BASEREVISION, "$Revision: 1796539 $");
         printf(" Copyright 1996 Adam Twiss, Zeus Technology Ltd, http://www.zeustech.net/<br>\n");
         printf(" Licensed to The Apache Software Foundation, http://www.apache.org/<br>\n");
         printf("</p>\n<p>\n");
@@ -2009,6 +2038,9 @@ static void usage(const char *progname)
 #define TLS1_X_HELP_MSG ""
 #endif
 
+#ifdef HAVE_TLSEXT
+    fprintf(stderr, "    -I              Disable TLS Server Name Indication (SNI) extension\n");
+#endif
     fprintf(stderr, "    -Z ciphersuite  Specify SSL/TLS cipher suite (See openssl ciphers)\n");
     fprintf(stderr, "    -f protocol     Specify SSL/TLS protocol\n");
     fprintf(stderr, "                    (" SSL2_HELP_MSG SSL3_HELP_MSG "TLS1" TLS1_X_HELP_MSG " or ALL)\n");
@@ -2133,6 +2165,14 @@ int main(int argc, const char * const argv[])
     apr_getopt_t *opt;
     const char *opt_arg;
     char c;
+#if OPENSSL_VERSION_NUMBER >= 0x10100000L
+    int max_prot = TLS1_2_VERSION;
+#ifndef OPENSSL_NO_SSL3
+    int min_prot = SSL3_VERSION;
+#else
+    int min_prot = TLS1_VERSION;
+#endif
+#endif /* #if OPENSSL_VERSION_NUMBER >= 0x10100000L */
 #ifdef USE_SSL
     AB_SSL_METHOD_CONST SSL_METHOD *meth = SSLv23_client_method();
 #endif
@@ -2172,7 +2212,7 @@ int main(int argc, const char * const argv[])
     myhost = NULL; /* 0.0.0.0 or :: */
 
     apr_getopt_init(&opt, cntxt, argc, argv);
-    while ((status = apr_getopt(opt, "n:c:t:s:b:T:p:u:v:lrkVhwix:y:z:C:H:P:A:g:X:de:SqB:m:"
+    while ((status = apr_getopt(opt, "n:c:t:s:b:T:p:u:v:lrkVhwiIx:y:z:C:H:P:A:g:X:de:SqB:m:"
 #ifdef USE_SSL
             "Z:f:"
 #endif
@@ -2291,7 +2331,16 @@ int main(int argc, const char * const argv[])
                  * allow override of some of the common headers that ab adds
                  */
                 if (strncasecmp(opt_arg, "Host:", 5) == 0) {
-                    opt_host = 1;
+                    char *host;
+                    apr_size_t len;
+                    opt_arg += 5;
+                    while (apr_isspace(*opt_arg))
+                        opt_arg++;
+                    len = strlen(opt_arg);
+                    host = strdup(opt_arg);
+                    while (len && apr_isspace(host[len-1]))
+                        host[--len] = '\0';
+                    opt_host = host;
                 } else if (strncasecmp(opt_arg, "Accept:", 7) == 0) {
                     opt_accept = 1;
                 } else if (strncasecmp(opt_arg, "User-Agent:", 11) == 0) {
@@ -2341,24 +2390,31 @@ int main(int argc, const char * const argv[])
             case 'B':
                 myhost = apr_pstrdup(cntxt, opt_arg);
                 break;
-#ifdef USE_SSL
-            case 'Z':
-                ssl_cipher = strdup(opt_arg);
-                break;
             case 'm':
                 method = CUSTOM_METHOD;
                 method_str[CUSTOM_METHOD] = strdup(opt_arg);
                 break;
+#ifdef USE_SSL
+            case 'Z':
+                ssl_cipher = strdup(opt_arg);
+                break;
             case 'f':
+#if OPENSSL_VERSION_NUMBER < 0x10100000L
                 if (strncasecmp(opt_arg, "ALL", 3) == 0) {
                     meth = SSLv23_client_method();
 #ifndef OPENSSL_NO_SSL2
                 } else if (strncasecmp(opt_arg, "SSL2", 4) == 0) {
                     meth = SSLv2_client_method();
+#ifdef HAVE_TLSEXT
+                    tls_use_sni = 0;
+#endif
 #endif
 #ifndef OPENSSL_NO_SSL3
                 } else if (strncasecmp(opt_arg, "SSL3", 4) == 0) {
                     meth = SSLv3_client_method();
+#ifdef HAVE_TLSEXT
+                    tls_use_sni = 0;
+#endif
 #endif
 #ifdef HAVE_TLSV1_X
                 } else if (strncasecmp(opt_arg, "TLS1.1", 6) == 0) {
@@ -2369,7 +2425,37 @@ int main(int argc, const char * const argv[])
                 } else if (strncasecmp(opt_arg, "TLS1", 4) == 0) {
                     meth = TLSv1_client_method();
                 }
+#else /* #if OPENSSL_VERSION_NUMBER < 0x10100000L */
+                meth = TLS_client_method();
+                if (strncasecmp(opt_arg, "ALL", 3) == 0) {
+                    max_prot = TLS1_2_VERSION;
+#ifndef OPENSSL_NO_SSL3
+                    min_prot = SSL3_VERSION;
+#else
+                    min_prot = TLS1_VERSION;
+#endif
+#ifndef OPENSSL_NO_SSL3
+                } else if (strncasecmp(opt_arg, "SSL3", 4) == 0) {
+                    max_prot = SSL3_VERSION;
+                    min_prot = SSL3_VERSION;
+#endif
+                } else if (strncasecmp(opt_arg, "TLS1.1", 6) == 0) {
+                    max_prot = TLS1_1_VERSION;
+                    min_prot = TLS1_1_VERSION;
+                } else if (strncasecmp(opt_arg, "TLS1.2", 6) == 0) {
+                    max_prot = TLS1_2_VERSION;
+                    min_prot = TLS1_2_VERSION;
+                } else if (strncasecmp(opt_arg, "TLS1", 4) == 0) {
+                    max_prot = TLS1_VERSION;
+                    min_prot = TLS1_VERSION;
+                }
+#endif /* #if OPENSSL_VERSION_NUMBER < 0x10100000L */
                 break;
+#ifdef HAVE_TLSEXT
+            case 'I':
+                tls_use_sni = 0;
+                break;
+#endif
 #endif
         }
     }
@@ -2413,7 +2499,9 @@ int main(int argc, const char * const argv[])
 #ifdef RSAREF
     R_malloc_init();
 #else
+#if OPENSSL_VERSION_NUMBER < 0x10100000L
     CRYPTO_malloc_init();
+#endif
 #endif
     SSL_load_error_strings();
     SSL_library_init();
@@ -2426,6 +2514,10 @@ int main(int argc, const char * const argv[])
         exit(1);
     }
     SSL_CTX_set_options(ssl_ctx, SSL_OP_ALL);
+#if OPENSSL_VERSION_NUMBER >= 0x10100000L && !defined(LIBRESSL_VERSION_NUMBER)
+    SSL_CTX_set_max_proto_version(ssl_ctx, max_prot);
+    SSL_CTX_set_min_proto_version(ssl_ctx, min_prot);
+#endif
 #ifdef SSL_MODE_RELEASE_BUFFERS
     /* Keep memory usage as low as possible */
     SSL_CTX_set_mode (ssl_ctx, SSL_MODE_RELEASE_BUFFERS);

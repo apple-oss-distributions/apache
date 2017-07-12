@@ -24,12 +24,13 @@
 <a href="http://www.apache.org/">Apache</a> &gt; <a href="http://httpd.apache.org/">Serveur HTTP</a> &gt; <a href="http://httpd.apache.org/docs/">Documentation</a> &gt; <a href="../">Version 2.4</a> &gt; <a href="./">Recettes et tutoriels</a></div><div id="page-content"><div id="preamble"><h1>Tutoriel Apache : Contenu dynamique basé sur CGI</h1>
 <div class="toplang">
 <p><span>Langues Disponibles: </span><a href="../en/howto/cgi.html" hreflang="en" rel="alternate" title="English">&nbsp;en&nbsp;</a> |
+<a href="../es/howto/cgi.html" hreflang="es" rel="alternate" title="Español">&nbsp;es&nbsp;</a> |
 <a href="../fr/howto/cgi.html" title="Français">&nbsp;fr&nbsp;</a> |
 <a href="../ja/howto/cgi.html" hreflang="ja" rel="alternate" title="Japanese">&nbsp;ja&nbsp;</a> |
 <a href="../ko/howto/cgi.html" hreflang="ko" rel="alternate" title="Korean">&nbsp;ko&nbsp;</a></p>
 </div>
 </div>
-<div id="quickview"><ul id="toc"><li><img alt="" src="../images/down.gif" /> <a href="#intro">Introduction</a></li>
+<div id="quickview"><a href="https://www.apache.org/foundation/contributing.html" class="badge"><img src="https://www.apache.org/images/SupportApache-small.png" alt="Support Apache!" /></a><ul id="toc"><li><img alt="" src="../images/down.gif" /> <a href="#intro">Introduction</a></li>
 <li><img alt="" src="../images/down.gif" /> <a href="#configuring">Configurer Apache pour autoriser CGI</a></li>
 <li><img alt="" src="../images/down.gif" /> <a href="#writing">Ecrire un programme CGI</a></li>
 <li><img alt="" src="../images/down.gif" /> <a href="#troubleshoot">Mais ça ne marche toujours pas !</a></li>
@@ -42,14 +43,14 @@
 <h2><a name="intro" id="intro">Introduction</a></h2>
     
 
-    <table class="related"><tr><th>Modules Apparentés</th><th>Directives Apparentées</th></tr><tr><td><ul><li><code class="module"><a href="../mod/mod_alias.html">mod_alias</a></code></li><li><code class="module"><a href="../mod/mod_cgi.html">mod_cgi</a></code></li></ul></td><td><ul><li><code class="directive"><a href="../mod/mod_mime.html#addhandler">AddHandler</a></code></li><li><code class="directive"><a href="../mod/core.html#options">Options</a></code></li><li><code class="directive"><a href="../mod/mod_alias.html#scriptalias">ScriptAlias</a></code></li></ul></td></tr></table>
+    <table class="related"><tr><th>Modules Apparentés</th><th>Directives Apparentées</th></tr><tr><td><ul><li><code class="module"><a href="../mod/mod_alias.html">mod_alias</a></code></li><li><code class="module"><a href="../mod/mod_cgi.html">mod_cgi</a></code></li><li><code class="module"><a href="../mod/mod_cgid.html">mod_cgid</a></code></li></ul></td><td><ul><li><code class="directive"><a href="../mod/mod_mime.html#addhandler">AddHandler</a></code></li><li><code class="directive"><a href="../mod/core.html#options">Options</a></code></li><li><code class="directive"><a href="../mod/mod_alias.html#scriptalias">ScriptAlias</a></code></li></ul></td></tr></table>
 
     <p>CGI (Common Gateway Interface) définit une méthode d'interaction
     entre un serveur web et des programmes générateurs de contenu
-    externes, plus souvent appelés programmes CGI ou scripts CGI. Il
-    s'agit de la méthode la plus simple, et la plus
-    courante, pour ajouter du contenu dynamique à votre site web. Ce
-    document est une introduction à la configuration de CGI sur votre
+    externes, plus souvent appelés programmes CGI ou scripts CGI.
+    Il s'agit d'une méthode simple pour ajouter du contenu dynamique à votre site
+    web en utilisant votre langage de programmation préféré.
+    Ce document est une introduction à la configuration de CGI sur votre
     serveur web Apache, et une initiation à l'écriture de programmes
     CGI.</p>
   </div><div class="top"><a href="#page-header"><img alt="top" src="../images/up.gif" /></a></div>
@@ -67,8 +68,16 @@
     commentée dans votre <code>httpd.conf</code>. Une directive correcte
     doit ressembler à ceci :
 
+    <pre class="prettyprint lang-config">LoadModule cgid_module modules/mod_cgid.so</pre>
+
+
+
+     Sous Windows, ou si l'on utilise un module MPM non-threadé comme prefork,
+     une directive correctement configurée sera du style :
+
     <pre class="prettyprint lang-config">LoadModule cgi_module modules/mod_cgi.so</pre>
 </div>
+
 
     <h3><a name="scriptalias" id="scriptalias">ScriptAlias</a></h3>
       
@@ -604,6 +613,7 @@ foreach my $key (keys %ENV) {
   </div></div>
 <div class="bottomlang">
 <p><span>Langues Disponibles: </span><a href="../en/howto/cgi.html" hreflang="en" rel="alternate" title="English">&nbsp;en&nbsp;</a> |
+<a href="../es/howto/cgi.html" hreflang="es" rel="alternate" title="Español">&nbsp;es&nbsp;</a> |
 <a href="../fr/howto/cgi.html" title="Français">&nbsp;fr&nbsp;</a> |
 <a href="../ja/howto/cgi.html" hreflang="ja" rel="alternate" title="Japanese">&nbsp;ja&nbsp;</a> |
 <a href="../ko/howto/cgi.html" hreflang="ko" rel="alternate" title="Korean">&nbsp;ko&nbsp;</a></p>
@@ -625,7 +635,7 @@ var comments_identifier = 'http://httpd.apache.org/docs/2.4/howto/cgi.html';
     }
 })(window, document);
 //--><!]]></script></div><div id="footer">
-<p class="apache">Copyright 2016 The Apache Software Foundation.<br />Autorisé sous <a href="http://www.apache.org/licenses/LICENSE-2.0">Apache License, Version 2.0</a>.</p>
+<p class="apache">Copyright 2017 The Apache Software Foundation.<br />Autorisé sous <a href="http://www.apache.org/licenses/LICENSE-2.0">Apache License, Version 2.0</a>.</p>
 <p class="menu"><a href="../mod/">Modules</a> | <a href="../mod/directives.html">Directives</a> | <a href="http://wiki.apache.org/httpd/FAQ">FAQ</a> | <a href="../glossary.html">Glossaire</a> | <a href="../sitemap.html">Plan du site</a></p></div><script type="text/javascript"><!--//--><![CDATA[//><!--
 if (typeof(prettyPrint) !== 'undefined') {
     prettyPrint();
