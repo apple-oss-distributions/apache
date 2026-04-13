@@ -13,8 +13,15 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-#
-#   standard stuff
-#
+function(generate_builtin_modules_c output_filename module_list)
+  list(PREPEND module_list "core")
 
-include $(top_srcdir)/build/special.mk
+  foreach(module ${module_list})
+    string(APPEND MODULES_EXTERN "extern module ${module}_module;\n")
+    string(APPEND MODULES_PRELINK "  &${module}_module,\n")
+    string(APPEND MODULES_SYMBOLS "  {\"${module}_module\", &${module}_module},\n")
+    string(APPEND MODULES_PRELOAD "  &${module}_module,\n")
+  endforeach()
+
+  configure_file("build/modules.c.in" ${output_filename})
+endfunction()
